@@ -65,6 +65,7 @@
   <ItemGroup>
     <ClInclude Include="Colour.h" />
     <ClInclude Include="DoubleBuffer.h" />
+    <ClInclude Include="FragmentShader.h" />
     <ClInclude Include="FrameBuffer.h" />
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="Matrix4.h" />
@@ -72,15 +73,18 @@
     <ClInclude Include="Rasteriser.h" />
     <ClInclude Include="Types.h" />
     <ClInclude Include="Vector.h" />
+    <ClInclude Include="VertexShader.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Colour.cpp" />
     <ClCompile Include="DoubleBuffer.cpp" />
+    <ClCompile Include="FragmentShader.cpp" />
     <ClCompile Include="FrameBuffer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Projection.cpp" />
     <ClCompile Include="Rasteriser.cpp" />
     <ClCompile Include="Vector.cpp" />
+    <ClCompile Include="VertexShader.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

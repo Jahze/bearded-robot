@@ -29,7 +29,7 @@ public:
 			u.x * v.y - u.y * v.x
 		};
 
-		return normal.Normalize();
+		return normal.NormalizedCopy();
 	}
 
 	Vector3 Centre() const
@@ -43,8 +43,11 @@ public:
 
 	bool IsAntiClockwise() const
 	{
-		Vector3 n = Normal();
-		return points[0].x * n.x + points[1].y * n.y + points[2].z * n.z < 0.0f;
+		// http://myweb.lmu.edu/dondi/share/cg/backface-culling-and-vectors.pdf
+
+		// Assumes the camera is looking in direction (0, 0, -1)
+
+		return Normal().z <= 0.0f;
 	}
 };
 
@@ -96,7 +99,7 @@ public:
 			// Bottom face
 			{	-Vector3::UnitX + (-Vector3::UnitY) + Vector3::UnitZ,
 				-Vector3::UnitX + (-Vector3::UnitY) + (-Vector3::UnitZ),
-				Vector3::UnitX + (-Vector3::UnitY) + Vector3::UnitZ },
+				Vector3::UnitX + (-Vector3::UnitY) + Vector3::UnitZ, },
 
 			{	Vector3::UnitX + (-Vector3::UnitY) + Vector3::UnitZ,
 				-Vector3::UnitX + (-Vector3::UnitY) + (-Vector3::UnitZ),

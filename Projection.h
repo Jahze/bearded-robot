@@ -7,17 +7,18 @@
 class Projection
 {
 public:
-	Projection(Real fovx, Real fovy, Real znear, Real zfar);
+	Projection(Real fovx, Real fovy, Real znear, Real zfar, unsigned width, unsigned height);
 
 	Matrix4 GetProjectionMatrix() const;
 
-	void Project(Vector3 & v);
-	void ToScreen(unsigned width, unsigned height, Vector3 & v);
-	//bool ShouldClip(const Vector<4> & v);
+	Real ToScreenX(Real x) const;
+	Real ToScreenY(Real y) const;
 
 private:
-	Real m_fovxCoeff;
-	Real m_fovyCoeff;
-	Real m_zClip1;
-	Real m_zClip2;
+	Real m_fovx;
+	Real m_fovy;
+	Real m_znear;
+	Real m_zfar;
+	unsigned m_width;
+	unsigned m_height;
 };

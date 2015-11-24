@@ -11,6 +11,7 @@
 #include "Projection.h"
 #include "Rasteriser.h"
 #include "Vector.h"
+#include "VertexShader.h"
 
 DoubleBuffer *pFrames = 0;
 
@@ -48,6 +49,7 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static bool paused = false;
 	static bool cull = false;
 	static bool drawNormals = false;
+	static bool yrot = true;
 
 	switch (message)
 	{
@@ -78,60 +80,59 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			const unsigned height = pFrame->GetHeight();
 
 			// cube corners look a bit strange when centred
-			Projection projection(45.0f, 90.0f, 10.0f, 1000.0f);
+			Projection projection(45.0f, 90.0f, 10.0f, 1000.0f, width, height);
 
 			Matrix4 modelTransform =
-				Matrix4::Translation({ 0.0, 0.0, -50.0 }) *
-				Matrix4::RotationAboutY(Units::Degrees, g_rotation);
+				Matrix4::Translation({ 0.0, 0.0, -50.0 });
+			
+			if (yrot)
+				modelTransform = modelTransform * Matrix4::RotationAboutY(Units::Degrees, g_rotation);
+			else
+				modelTransform = modelTransform * Matrix4::RotationAboutX(Units::Degrees, g_rotation);
+				
 
-			Matrix4 projectionMatrix = projection.GetProjectionMatrix();
+			VertexShader vertexShader(projection);
+			vertexShader.SetModelTransform(modelTransform);
+
+			//Vector3 light{ 0.0, 0.0, -40 };
+			//light = modelTransform * light;
+			//rasta.SetLightPosition(light);
 
 			geometry::Cube cube(25.0);
 			const auto end = cube.triangles.end();
 
 			for (auto iter = cube.triangles.begin(); iter != end; ++iter)
 			{
-				// TODO: culling isn't correct i guess
-				// would like to test it after projection
+				const Vector3 normal = iter->Normal();
 
-				geometry::Triangle justModel = *iter;
+				std::array<VertexShaderOutput,3> vertexShaded;
 
 				for (unsigned i = 0; i < 3; ++i)
-				{
-					justModel.points[i] = modelTransform * iter->points[i];
-				}
+					vertexShaded[i] = vertexShader.Execute(iter->points[i], normal);
 
-				if (cull && !justModel.IsAntiClockwise())
+				geometry::Triangle projected = {
+					vertexShaded[0].m_projected.XYZ(),
+					vertexShaded[1].m_projected.XYZ(),
+					vertexShaded[2].m_projected.XYZ(),
+				};
+
+				if (cull && projected.IsAntiClockwise())
 					continue;
 
-				geometry::Triangle projected = *iter;
-
-				for (unsigned i = 0; i < 3; ++i)
-				{
-					Vector4 p(projected.points[i].x, projected.points[i].y, projected.points[i].z, 1.0);
-					p = projectionMatrix * modelTransform * p;
-
-					projected.points[i].x = p.x / p.w;
-					projected.points[i].y = p.y / p.w;
-					projected.points[i].z = p.z / p.w;
-
-					projection.ToScreen(width, height, projected.points[i]);
-				}
-
-				rasta.DrawTriangle(*iter, projected);
+				rasta.DrawTriangle(vertexShaded);
 
 				if (drawNormals)
 				{
 					Vector3 centre = iter->Centre();
 					Vector3 normalExtent = centre + (iter->Normal() * 5.0);
 
-					centre = projectionMatrix * modelTransform * centre;
-					normalExtent = projectionMatrix * modelTransform * normalExtent;
+					VertexShaderOutput centre_v = vertexShader.Execute(centre);
+					VertexShaderOutput normalExtent_v = vertexShader.Execute(normalExtent);
 
-					projection.ToScreen(width, height, centre);
-					projection.ToScreen(width, height, normalExtent);
-
-					rasta.DrawLine(centre.x, centre.y, normalExtent.x, normalExtent.y, Colour::Red);
+					rasta.DrawLine(
+						centre_v.m_screenX, centre_v.m_screenY,
+						normalExtent_v.m_screenX, normalExtent_v.m_screenY,
+						Colour::Red);
 				}
 			}
 
@@ -156,6 +157,10 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			else if (wParam == 0x43) // c
 			{
 				cull = !cull;
+			}
+			else if (wParam == 0x52) // r
+			{
+				yrot = !yrot;
 			}
 			else if (wParam == VK_ESCAPE)
 			{
