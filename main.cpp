@@ -4,20 +4,32 @@
 #include <string>
 #include <Windows.h>
 
+#include "Camera.h"
 #include "DoubleBuffer.h"
 #include "FrameBuffer.h"
 #include "Geometry.h"
-#include "Matrix4.h"
+#include "InputHandler.h"
+#include "Matrix.h"
 #include "Projection.h"
 #include "Rasteriser.h"
+#include "ScopedHDC.h"
 #include "Vector.h"
 #include "VertexShader.h"
 
 DoubleBuffer *pFrames = 0;
 
-static Real g_rotation = 0.0;
-static std::chrono::steady_clock::time_point g_lastTime = std::chrono::steady_clock::now();
-const static Real kRotationPerSec = 50.0;
+namespace
+{
+	Real g_rotation = 0.0;
+
+	std::chrono::steady_clock::time_point g_lastTime = std::chrono::steady_clock::now();
+
+	const Real kRotationPerSec = 50.0;
+
+	Camera g_camera;
+
+	InputHandler g_inputHandler;
+}
 
 void FrameCount(HWND hwnd)
 {
@@ -40,14 +52,15 @@ void FrameCount(HWND hwnd)
 	std::string str = "FPS: " + std::to_string((unsigned long long)lastFps)
 		+ " Rotation: " + std::to_string((int)std::round(g_rotation));
 
-	TextOut(GetDC(hwnd), 5, 5, str.c_str(), str.length());
+	ScopedHDC hdc(hwnd);
+	TextOut(hdc, 5, 5, str.c_str(), str.length());
 }
 
 int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	static RenderMode mode = RenderMode::WireFrame;
 	static bool paused = false;
-	static bool cull = false;
+	static bool cull = true;
 	static bool drawNormals = false;
 	static bool yrot = true;
 
@@ -80,7 +93,7 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			const unsigned height = pFrame->GetHeight();
 
 			// cube corners look a bit strange when centred
-			Projection projection(45.0f, 90.0f, 10.0f, 1000.0f, width, height);
+			Projection projection(45.0f, 90.0f, 1.0f, 1000.0f, width, height);
 
 			Matrix4 modelTransform =
 				Matrix4::Translation({ 0.0, 0.0, -50.0 });
@@ -89,14 +102,18 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				modelTransform = modelTransform * Matrix4::RotationAboutY(Units::Degrees, g_rotation);
 			else
 				modelTransform = modelTransform * Matrix4::RotationAboutX(Units::Degrees, g_rotation);
-				
+
+			//Vector3 rotationCentre{ 0.0, 0.0, -50.0 };
+			//Vector3 direction{ Real(sin(g_rotation * DEG_TO_RAD)), 0.0, Real(cos(g_rotation * DEG_TO_RAD)) };
+			//g_camera.SetPosition(rotationCentre + direction * 50.0);
 
 			VertexShader vertexShader(projection);
 			vertexShader.SetModelTransform(modelTransform);
+			vertexShader.SetViewTransform(g_camera.GetTransform());
 
-			//Vector3 light{ 0.0, 0.0, -40 };
-			//light = modelTransform * light;
-			//rasta.SetLightPosition(light);
+			Vector3 light{ 0.0, 0.0, 0.0 };
+			//light = g_camera.GetTransform() * light;
+			rasta.SetLightPosition(light);
 
 			geometry::Cube cube(25.0);
 			const auto end = cube.triangles.end();
@@ -142,23 +159,46 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		}
 
+		case WM_MOUSEMOVE:
+			g_inputHandler.DecodeMouseMove(lParam, wParam);
+			break;
+
+		case WM_KEYDOWN:
+			if (wParam == 'A')
+			{
+				g_camera.Move(-Vector3::UnitX);
+			}
+			else if (wParam == 'D')
+			{
+				g_camera.Move(Vector3::UnitX);
+			}
+			else if (wParam == 'W')
+			{
+				g_camera.Move(-Vector3::UnitZ);
+			}
+			else if (wParam == 'S')
+			{
+				g_camera.Move(Vector3::UnitZ);
+			}
+			break;
+
 		case WM_KEYUP:
-			if (wParam == 0x4D) // m
+			if (wParam == 'M')
 			{
 				mode = static_cast<RenderMode>(static_cast<std::underlying_type<RenderMode>::type>(mode) + 1);
 
 				if (mode == RenderMode::End)
 					mode = RenderMode::First;
 			}
-			else if (wParam == 0x4e) // n
+			else if (wParam == 'N')
 			{
 				drawNormals = !drawNormals;
 			}
-			else if (wParam == 0x43) // c
+			else if (wParam == 'C')
 			{
 				cull = !cull;
 			}
-			else if (wParam == 0x52) // r
+			else if (wParam == 'R')
 			{
 				yrot = !yrot;
 			}
@@ -169,6 +209,10 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			else if (wParam == VK_SPACE)
 			{
 				paused = !paused;
+			}
+			else if (wParam == 'V')
+			{
+				g_camera.Reset();
 			}
 			break;
 
@@ -204,6 +248,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, i
 	HWND hwnd = CreateWindow("BRWIN", "Bearded Robot", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, NULL, NULL, hInstance, NULL);
 	ShowWindow(hwnd, nCmdShow);
 	UpdateWindow(hwnd);
+
+	RECT rect;
+	::GetWindowRect(hwnd, &rect);
+	g_inputHandler.SetWindowArea(rect);
+	g_inputHandler.AddMouseListener(&g_camera);
 
 	BOOL bRet;
 	MSG msg;

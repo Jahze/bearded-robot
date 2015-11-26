@@ -19,7 +19,7 @@ VertexShaderOutput VertexShader::Execute(const Vector3 & vertex, const Vector3 &
 
 	// TODO w == 0?
 
-	output.m_projected = m_projection.GetProjectionMatrix() * m_modelTransform * v4;
+	output.m_projected = m_projection.GetProjectionMatrix() * m_precomputedModelView * v4;
 	output.m_projected.x /= output.m_projected.w;
 	output.m_projected.y /= output.m_projected.w;
 	output.m_projected.z /= output.m_projected.w;

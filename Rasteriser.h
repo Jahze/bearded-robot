@@ -40,6 +40,8 @@ private:
 	void DrawFlatBottomTriangle(const FragmentShader & fragmentShader,
 		int x1, int y1, int x2, int y2, int x3, int y3);
 
+	bool ShouldCull(const std::array<VertexShaderOutput, 3> & triangle);
+
 	FrameBuffer *m_pFrame;
 	RenderMode m_mode;
 	Vector3 m_lightPosition;

@@ -1,11 +1,13 @@
+#include <cassert>
 #include <cstring>
 
 #include "FrameBuffer.h"
+#include "ScopedHDC.h"
 
 FrameBuffer::FrameBuffer(HWND hWnd)
 	: m_hWnd(hWnd)
 {
-	HDC hdc = GetDC(hWnd);
+	ScopedHDC hdc(hWnd);
 	m_hDc = CreateCompatibleDC(hdc);
 
 	RECT rect;
@@ -24,7 +26,8 @@ FrameBuffer::FrameBuffer(HWND hWnd)
 
 FrameBuffer::~FrameBuffer()
 {
-	DeleteObject(m_hDc);
+	DeleteObject(m_hBitmap);
+	DeleteDC(m_hDc);
 	delete[] m_pBytes;
 }
 
@@ -41,7 +44,10 @@ void FrameBuffer::CopyToWindow()
 {
 	SetBitmapBits(m_hBitmap, m_pixels * m_bytesPerPixel, m_pBytes);
 
-	HDC hdc = GetDC(m_hWnd);
+	ScopedHDC hdc(m_hWnd);
+
+	assert(hdc);
+
 	BOOL res = BitBlt(hdc, 0, 0, m_width, m_height, m_hDc, 0, 0, SRCCOPY);
 }
 

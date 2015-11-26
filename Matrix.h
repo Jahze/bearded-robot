@@ -151,6 +151,19 @@ public:
 		return RotationAboutY(Units::Radians, theta * DEG_TO_RAD);
 	}
 
+	static Matrix4 InverseRotationAboutY(Units::Radians_t, Real theta)
+	{
+		const Real c = cos(theta);
+		const Real s = sin(theta);
+
+		return {{{
+			{ c,   0.0, -s,  0.0 },
+			{ 0.0, 1.0, 0.0, 0.0 },
+			{ s,   0.0, c,   0.0 },
+			{ 0.0, 0.0, 0.0, 1.0 }
+		}}};
+	}
+
 private:
 	Real m_values[4][4];
 };

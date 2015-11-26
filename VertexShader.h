@@ -1,8 +1,9 @@
 #pragma once
 
 #include "Colour.h"
-#include "Matrix4.h"
+#include "Matrix.h"
 
+class Camera;
 class Projection;
 
 struct VertexShaderOutput
@@ -25,9 +26,18 @@ public:
 	void SetModelTransform(const Matrix4 & model)
 	{
 		m_modelTransform = model;
+		m_precomputedModelView = m_viewTransform * m_modelTransform;
+	}
+
+	void SetViewTransform(const Matrix4 & view)
+	{
+		m_viewTransform = view;
+		m_precomputedModelView = m_viewTransform * m_modelTransform;
 	}
 
 private:
 	const Projection & m_projection;
 	Matrix4 m_modelTransform;
+	Matrix4 m_viewTransform;
+	Matrix4 m_precomputedModelView;
 };

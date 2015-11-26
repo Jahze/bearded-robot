@@ -12,6 +12,9 @@ Rasteriser::Rasteriser(FrameBuffer *pFrame, RenderMode mode)
 
 void Rasteriser::DrawTriangle(const std::array<VertexShaderOutput, 3> & triangle)
 {
+	if (ShouldCull(triangle))
+		return;
+
 	if (m_mode == RenderMode::WireFrame)
 	{
 		DrawWireFrameTriangle(triangle);
@@ -198,4 +201,25 @@ void Rasteriser::DrawLine(int x1, int y1, int x2, int y2, const Colour & colour)
 			y += sy;
 		}
 	}
+}
+
+bool Rasteriser::ShouldCull(const std::array<VertexShaderOutput, 3> & triangle)
+{
+	const unsigned width = m_pFrame->GetWidth();
+	const unsigned height = m_pFrame->GetHeight();
+
+	// TODO: generate new triangle (clipping) when the part of it is in the view space
+	for (auto && v : triangle)
+	{
+		if (v.m_screenX < 0 || v.m_screenX > width)
+			return true;
+
+		if (v.m_screenY < 0 || v.m_screenY > height)
+			return true;
+
+		if (v.m_projected.z < -1.0 || v.m_projected.z > 1.0)
+			return true;
+	}
+
+	return false;
 }
