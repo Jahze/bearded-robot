@@ -217,12 +217,6 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessExpression(Layout::StackLa
 	default:
 		throw std::runtime_error("malformed syntax tree");
 	}
-
-	SymbolLocation location;
-	location.m_type = SymbolLocation::LocalMemory;
-	location.m_data = 0x20;
-
-	return { location, BuiltinType::Get("int") };
 }
 
 CodeGenerator::ValueDescription CodeGenerator::ProcessLiteral(Layout::StackLayout & stack, SyntaxNode * literal)
@@ -230,9 +224,9 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessLiteral(Layout::StackLayou
 	assert(literal->m_nodes.size() == 1);
 	assert(literal->m_nodes[0]->m_type == SyntaxNodeType::Type);
 
-	BuiltinType * type = BuiltinType::Get(literal->m_nodes[0]->m_data);
+	BuiltinType * type = BuiltinType::Get(BuiltinType::FromName(literal->m_nodes[0]->m_data));
 
-	if (type->GetName() == "float")
+	if (type->GetType() == BuiltinTypeType::Float)
 	{
 		float value = std::stof(literal->m_data);
 		SymbolLocation location;
@@ -286,7 +280,7 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessName(Layout::StackLayout &
 
 void CodeGenerator::GenerateWrite(const ValueDescription & target, uint32_t literal)
 {
-	if (br::none_of(target.type->GetName(), "int", "bool"))
+	if (br::none_of(target.type->GetType(), BuiltinTypeType::Int, BuiltinTypeType::Bool))
 	{
 		// TODO : convert between float and int
 		throw std::runtime_error("malformed syntax tree");
@@ -338,7 +332,7 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 		std::string instruction;
 		std::vector<uint8_t> bytes;
 
-		if (type->GetType() == BuiltinTypeType::Vector)
+		if (type->IsVector())
 		{
 			instruction = "vmovaps ";
 
@@ -347,7 +341,7 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 			else
 				bytes = { 0x0f, 0x28 };
 		}
-		else if (type->GetName() == "float")
+		else if (type->GetType() == BuiltinTypeType::Float)
 		{
 			instruction = "movss ";
 
@@ -446,8 +440,7 @@ std::string CodeGenerator::TranslateValue(const ValueDescription & value)
 		}
 	}
 
-	if (value.type->GetType() == BuiltinTypeType::Vector ||
-		value.type->GetName() == "float")
+	if (value.type->IsVector() || value.type->GetType() == BuiltinTypeType::Float)
 	{
 			return XRegToStr(value.location.m_data);
 	}

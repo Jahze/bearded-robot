@@ -40,22 +40,22 @@ namespace
 
 	bool CheckAdditiveExpressionCompatibility(BuiltinType * lhs, BuiltinType * rhs)
 	{
-		if (lhs->GetType() == BuiltinTypeType::Vector && rhs->GetType() == BuiltinTypeType::Vector)
+		if (lhs->IsVector() && rhs->IsVector())
 		{
 			return lhs == rhs;
 		}
 
-		if (lhs->GetType() != BuiltinTypeType::Scalar || rhs->GetType() != BuiltinTypeType::Scalar)
-			return false;
+		if (lhs->IsScalar() && rhs->IsScalar())
+			return true;
 
-		return true;
+		return false;
 	}
 
 	bool CheckMultiplicativeExpressionCompatibility(BuiltinType * lhs, BuiltinType * rhs)
 	{
 		// matrix * matrix
 		// matrix * vector
-		if (lhs->GetType() == BuiltinTypeType::Vector && rhs->GetType() == BuiltinTypeType::Vector)
+		if (lhs->IsVector() && rhs->IsVector())
 		{
 			if (lhs == rhs)
 				return true;
@@ -67,16 +67,16 @@ namespace
 		}
 
 		// vector * scalar
-		if (lhs->GetType() == BuiltinTypeType::Vector && rhs->GetType() == BuiltinTypeType::Scalar)
+		if (lhs->IsVector() && rhs->IsScalar())
 		{
-			if (lhs->GetElementType()->GetType() == BuiltinTypeType::Scalar)
+			if (lhs->GetElementType()->IsScalar())
 				return true;
 
 			return false;
 		}
 
 		// scalar * scalar
-		if (lhs->GetType() == BuiltinTypeType::Scalar && rhs->GetType() == BuiltinTypeType::Scalar)
+		if (lhs->IsScalar() && rhs->IsScalar())
 			return true;
 
 		return false;
@@ -84,7 +84,7 @@ namespace
 
 	bool CheckEqualityExpressionCompatibility(BuiltinType * lhs, BuiltinType * rhs)
 	{
-		if (lhs->GetType() == BuiltinTypeType::Scalar && rhs->GetType() == BuiltinTypeType::Scalar)
+		if (lhs->IsScalar() && rhs->IsScalar())
 			return true;
 
 		return lhs == rhs;
@@ -92,41 +92,42 @@ namespace
 
 	bool CheckAssignmentExpressionCompatibility(BuiltinType * lhs, BuiltinType * rhs)
 	{
-		if (lhs->GetType() == BuiltinTypeType::Vector || rhs->GetType() == BuiltinTypeType::Vector)
+		if (lhs->IsVector() && rhs->IsVector())
 		{
 			return lhs == rhs;
 		}
 
-		if (lhs->GetType() == BuiltinTypeType::Function || rhs->GetType() == BuiltinTypeType::Function)
-			return false;
+		if (lhs->IsScalar() && rhs->IsScalar())
+			return true;
 
-		return true;
+		if (lhs->GetType() == BuiltinTypeType::Bool && rhs->GetType() == BuiltinTypeType::Bool)
+			return true;
+
+		return false;
 	}
 
 	bool CheckExpressionsAreScalar(BuiltinType * lhs, BuiltinType * rhs)
 	{
-		return lhs->GetType() == BuiltinTypeType::Scalar && rhs->GetType() == BuiltinTypeType::Scalar;
+		return lhs->IsScalar() && rhs->IsScalar();
 	}
 
 	BuiltinType *ResultOf(BuiltinType * lhs, BuiltinType * rhs)
 	{
-		if (lhs->GetType() == BuiltinTypeType::Vector)
+		if (lhs->IsVector())
 		{
-			if (rhs->GetType() == BuiltinTypeType::Scalar)
+			if (rhs->IsScalar())
 				return lhs;
 
-			if (lhs->GetElementType()->GetType() == BuiltinTypeType::Vector)
+			if (lhs->GetElementType()->IsVector())
 				return rhs;
 
 			return lhs;
 		}
 
-		if (lhs->GetType() == BuiltinTypeType::Scalar)
+		if (lhs->IsScalar())
 		{
-			if (lhs->GetName() == "float" || rhs->GetName() == "float")
-				return BuiltinType::Get("float");
-
-			return lhs;
+			if (lhs->GetType() == BuiltinTypeType::Float || rhs->GetType() == BuiltinTypeType::Float)
+				return BuiltinType::Get(BuiltinTypeType::Float);
 		}
 
 		return lhs;
@@ -232,9 +233,9 @@ Symbol * SyntaxTree::AddSymbol(const tokeniser::Token & typeToken, const tokenis
 	BuiltinType *type;
 
 	if (symbolType == SymbolType::Function)
-		type = BuiltinType::Get("function");
+		type = BuiltinType::Get(BuiltinTypeType::Function);
 	else
-		type = BuiltinType::Get(typeToken.m_data);
+		type = BuiltinType::Get(BuiltinType::FromName(typeToken.m_data));
 
 	assert(type);
 
@@ -318,7 +319,7 @@ void SyntaxTree::FunctionOrVariable()
 
 		AddSymbol(typeToken, nameToken, ScopeType::Global, SymbolType::Function);
 
-		m_currentFunction->SetReturnType(typeToken.m_data);
+		m_currentFunction->SetReturnType(BuiltinType::FromName(typeToken.m_data));
 
 		FunctionBody(function);
 
@@ -509,7 +510,7 @@ void SyntaxTree::LocalVariable(SyntaxNode *parent)
 
 		Expression(initializer);
 
-		BuiltinType *lhsType = BuiltinType::Get(typeToken.m_data);
+		BuiltinType *lhsType = BuiltinType::Get(BuiltinType::FromName(typeToken.m_data));
 
 		if (lhsType != nullptr)
 		{
@@ -609,7 +610,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::RelationalExpression()
 			throw SyntaxException(next, "Cannot compare '" + lhsType->GetName() +
 				"' and '" + m_currentExpressionType->GetName() + "'");
 
-		m_currentExpressionType = BuiltinType::Get("bool");
+		m_currentExpressionType = BuiltinType::Get(BuiltinTypeType::Bool);
 
 		return std::move(operation);
 	};
@@ -731,9 +732,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::UnaryOperatorExpression()
 		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Negate));
 		operation->AddChild(ExpressionAtom());
 
-		const BuiltinTypeType expressionType = m_currentExpressionType->GetType();
-
-		if (expressionType != BuiltinTypeType::Scalar && expressionType != BuiltinTypeType::Vector)
+		if (! m_currentExpressionType->IsScalar() && ! m_currentExpressionType->IsVector())
 			throw SyntaxException(next, "Unary '-' applied to invalid expression");
 
 		return std::move(operation);
@@ -745,7 +744,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::UnaryOperatorExpression()
 		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::LogicalNegate));
 		operation->AddChild(ExpressionAtom());
 
-		if (m_currentExpressionType->GetType() != BuiltinTypeType::Boolean)
+		if (m_currentExpressionType->GetType() != BuiltinTypeType::Bool)
 			throw SyntaxException(next, "Unary '!' applied to non-boolean expression");
 
 		return std::move(operation);
@@ -776,14 +775,14 @@ std::unique_ptr<SyntaxNode> SyntaxTree::ExpressionAtom()
 		{
 			token = m_iterator->Next();
 
-			if (m_currentExpressionType->GetType() != BuiltinTypeType::Vector)
+			if (! m_currentExpressionType->IsVector())
 				throw SyntaxException(token, "Type '" + m_currentExpressionType->GetName() + "' cannot be subscripted");
 
 			std::unique_ptr<SyntaxNode> subscript = std::make_unique<SyntaxNode>(nullptr, SyntaxNodeType::Subscript);
 			subscript->AddChild(std::move(name));
 			subscript->AddChild(ExpressionAtom());
 
-			if (m_currentExpressionType->GetName() != "int")
+			if (m_currentExpressionType->GetType() != BuiltinTypeType::Int)
 				throw SyntaxException(token, "Subscript is not integral");
 
 			token = m_iterator->Next();
@@ -820,7 +819,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::ExpressionAtom()
 			break;
 		}
 
-		m_currentExpressionType = BuiltinType::Get(literalType->m_data);
+		m_currentExpressionType = BuiltinType::Get(BuiltinType::FromName(literalType->m_data));
 
 		return std::move(literal);
 	}

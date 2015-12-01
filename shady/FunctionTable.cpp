@@ -4,9 +4,9 @@
 #include "FunctionTable.h"
 #include "SymbolTable.h"
 
-void Function::SetReturnType(const std::string & name)
+void Function::SetReturnType(BuiltinTypeType type)
 {
-	m_type = BuiltinType::Get(name);
+	m_type = BuiltinType::Get(type);
 	assert(m_type);
 }
 

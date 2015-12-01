@@ -3,8 +3,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "BuiltinTypes.h"
 
-class BuiltinType;
 class Symbol;
 
 class Function
@@ -24,7 +24,7 @@ public:
 		m_locals.push_back(symbol);
 	}
 
-	void SetReturnType(const std::string & name);
+	void SetReturnType(BuiltinTypeType type);
 
 	const std::string & GetName() const;
 

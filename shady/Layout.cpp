@@ -46,7 +46,7 @@ SymbolLocation Layout::PlaceGlobalInMemory(float constant)
 {
 	SymbolLocation out;
 
-	PlaceInMemory(BuiltinType::Get("float"), out, ScopeType::Global);
+	PlaceInMemory(BuiltinType::Get(BuiltinTypeType::Float), out, ScopeType::Global);
 
 	return out;
 }
@@ -119,9 +119,9 @@ Layout::TemporaryRegister Layout::GetFreeRegister()
 
 bool Layout::StandardPlacement(BuiltinType * type, SymbolLocation & location, ScopeType scope)
 {
-	if (type->GetType() == BuiltinTypeType::Scalar)
+	if (type->IsScalar())
 	{
-		if (type->GetName() == "float")
+		if (type->GetType() == BuiltinTypeType::Float)
 		{
 			PlaceInXmmRegisterOrMemory(type, location, scope);
 			return true;
@@ -132,14 +132,9 @@ bool Layout::StandardPlacement(BuiltinType * type, SymbolLocation & location, Sc
 			return true;
 		}
 	}
-	else if (type->GetType() == BuiltinTypeType::Boolean)
+	else if (type->IsVector())
 	{
-		PlaceInRegisterOrMemory(type, location, scope);
-		return true;
-	}
-	else if (type->GetType() == BuiltinTypeType::Vector)
-	{
-		if (type->GetElementType()->GetType() == BuiltinTypeType::Vector)
+		if (type->GetElementType()->IsVector())
 		{
 			PlaceInMemory(type, location, scope);
 			return true;
@@ -149,6 +144,11 @@ bool Layout::StandardPlacement(BuiltinType * type, SymbolLocation & location, Sc
 			PlaceInXmmRegisterOrMemory(type, location, scope);
 			return true;
 		}
+	}
+	else if (type->GetType() == BuiltinTypeType::Bool)
+	{
+		PlaceInRegisterOrMemory(type, location, scope);
+		return true;
 	}
 
 	return false;

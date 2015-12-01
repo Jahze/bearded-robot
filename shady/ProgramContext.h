@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include "BuiltinTypes.h"
 
 class SymbolTable;
 
@@ -14,7 +15,7 @@ struct ContextVariable
 	};
 
 	std::string m_name;
-	std::string m_builtinType;
+	BuiltinTypeType m_builtinType;
 	Type m_type;
 };
 

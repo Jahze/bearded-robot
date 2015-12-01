@@ -9,15 +9,16 @@ const ProgramContext & ProgramContext::VertexShaderContext()
 	static ProgramContext context
 	{
 		{
-			{ "g_position", "vec4", ContextVariable::Input },
-			{ "g_normal", "vec3", ContextVariable::Input },
-			{ "g_model", "mat4x4", ContextVariable::Input },
-			{ "g_view", "mat4x4", ContextVariable::Input },
-			{ "g_perspective", "mat4x4", ContextVariable::Input },
+			{ "g_position", BuiltinTypeType::Vec4, ContextVariable::Input },
+			{ "g_normal", BuiltinTypeType::Vec3, ContextVariable::Input },
+			{ "g_model", BuiltinTypeType::Mat4x4, ContextVariable::Input },
+			{ "g_view", BuiltinTypeType::Mat4x4, ContextVariable::Input },
+			{ "g_perspective", BuiltinTypeType::Mat4x4, ContextVariable::Input },
+			{ "g_normal_matrix", BuiltinTypeType::Mat3x3, ContextVariable::Input },
 
-			{ "g_projected_position", "vec4", ContextVariable::Output },
-			{ "g_world_position", "vec4", ContextVariable::Output },
-			{ "g_world_normal", "vec4", ContextVariable::Output },
+			{ "g_projected_position", BuiltinTypeType::Vec4, ContextVariable::Output },
+			{ "g_world_position", BuiltinTypeType::Vec4, ContextVariable::Output },
+			{ "g_world_normal", BuiltinTypeType::Vec4, ContextVariable::Output },
 		}
 	};
 
