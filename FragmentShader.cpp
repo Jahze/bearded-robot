@@ -32,7 +32,7 @@ Colour FragmentShader::Execute(int x, int y) const
 	Real clamped = std::max<Real>(0.0, dot);
 
 	const Real k = 0.1;
-	const int shininess = 200;
+	const int shininess = 4;
 	Real attenuation = 1.0 / (lightDistance * k);
 	Vector3 colour = ambient + (diffuse * clamped * attenuation);
 
