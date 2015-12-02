@@ -103,7 +103,7 @@ bool Layout::HasFreeRegister() const
 	return false;
 }
 
-Layout::TemporaryRegister Layout::GetFreeRegister()
+std::unique_ptr<Layout::TemporaryRegister> Layout::GetFreeRegister()
 {
 	Register reg;
 	bool result = NextRegisterSlot(reg);
@@ -114,7 +114,32 @@ Layout::TemporaryRegister Layout::GetFreeRegister()
 	location.m_type = SymbolLocation::Register;
 	location.m_data = reg;
 
-	return TemporaryRegister(this, location);
+	return std::make_unique<TemporaryRegister>(this, location);
+}
+
+bool Layout::HasXmmFreeRegister() const
+{
+	for (auto && slot : m_xmmRegisters)
+	{
+		if (! slot.second)
+			return true;
+	}
+
+	return false;
+}
+
+std::unique_ptr<Layout::TemporaryRegister> Layout::GetFreeXmmRegister()
+{
+	XmmRegister reg;
+	bool result = NextXmmRegisterSlot(reg);
+
+	assert(result);
+
+	SymbolLocation location;
+	location.m_type = SymbolLocation::XmmRegister;
+	location.m_data = reg;
+
+	return std::make_unique<TemporaryRegister>(this, location);
 }
 
 bool Layout::StandardPlacement(BuiltinType * type, SymbolLocation & location, ScopeType scope)

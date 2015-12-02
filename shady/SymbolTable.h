@@ -38,6 +38,16 @@ struct SymbolLocation
 	{
 		return m_type == GlobalMemory || m_type == LocalMemory;
 	}
+
+	bool operator==(const SymbolLocation & rhs) const
+	{
+		return m_type == rhs.m_type && m_data == rhs.m_data;
+	}
+
+	bool operator!=(const SymbolLocation & rhs) const
+	{
+		return ! (*this == rhs);
+	}
 };
 
 class Symbol

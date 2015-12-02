@@ -151,6 +151,8 @@ int main()
 		"    float f = 1.0;\n"
 		"    vec4 v4;\n"
 		"    i = 2;\n"
+		"    i = 3 * 4;\n"
+		"    v4 = v4 * 7.0;\n"
 		//"    int main = 1;\n"
 		//"    int i = 8;\n"
 		//"    1 += 2;\n"

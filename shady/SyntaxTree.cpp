@@ -53,13 +53,13 @@ namespace
 
 	bool CheckMultiplicativeExpressionCompatibility(BuiltinType * lhs, BuiltinType * rhs)
 	{
-		// matrix * matrix
-		// matrix * vector
 		if (lhs->IsVector() && rhs->IsVector())
 		{
-			if (lhs == rhs)
+			// matrix * matrix
+			if (lhs->IsMatrix() && lhs == rhs)
 				return true;
 
+			// matrix * vector
 			if (lhs->GetElementType() == rhs)
 				return true;
 
@@ -86,6 +86,8 @@ namespace
 	{
 		if (lhs->IsScalar() && rhs->IsScalar())
 			return true;
+
+		// TODO : shouldn't allow compare of void/void function/function
 
 		return lhs == rhs;
 	}

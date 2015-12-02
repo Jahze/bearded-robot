@@ -147,6 +147,11 @@ public:
 			return m_location.m_data;
 		}
 
+		SymbolLocation Location() const
+		{
+			return m_location;
+		}
+
 	private:
 		Layout * m_layout;
 		SymbolLocation m_location;
@@ -155,7 +160,10 @@ public:
 	StackLayout TemporaryLayout();
 
 	bool HasFreeRegister() const;
-	TemporaryRegister GetFreeRegister();
+	std::unique_ptr<TemporaryRegister> GetFreeRegister();
+
+	bool HasXmmFreeRegister() const;
+	std::unique_ptr<TemporaryRegister> GetFreeXmmRegister();
 
 private:
 	bool StandardPlacement(BuiltinType * type, SymbolLocation & location, ScopeType scope);

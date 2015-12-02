@@ -69,6 +69,11 @@ public:
 			|| m_type == BuiltinTypeType::Mat3x3 || m_type == BuiltinTypeType::Mat4x4;
 	}
 
+	bool IsMatrix() const
+	{
+		return m_type == BuiltinTypeType::Mat3x3 || m_type == BuiltinTypeType::Mat4x4;
+	}
+
 private:
 	std::string m_name;
 	BuiltinTypeType m_elementType;
