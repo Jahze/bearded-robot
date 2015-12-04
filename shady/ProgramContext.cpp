@@ -10,11 +10,13 @@ const ProgramContext & ProgramContext::VertexShaderContext()
 	{
 		{
 			{ "g_position", BuiltinTypeType::Vec4, ContextVariable::Input },
-			{ "g_normal", BuiltinTypeType::Vec3, ContextVariable::Input },
+			//{ "g_normal", BuiltinTypeType::Vec3, ContextVariable::Input },
+			{ "g_normal", BuiltinTypeType::Vec4, ContextVariable::Input },
 			{ "g_model", BuiltinTypeType::Mat4x4, ContextVariable::Input },
 			{ "g_view", BuiltinTypeType::Mat4x4, ContextVariable::Input },
-			{ "g_perspective", BuiltinTypeType::Mat4x4, ContextVariable::Input },
-			{ "g_normal_matrix", BuiltinTypeType::Mat3x3, ContextVariable::Input },
+			{ "g_projection", BuiltinTypeType::Mat4x4, ContextVariable::Input },
+			//{ "g_normal_matrix", BuiltinTypeType::Mat3x3, ContextVariable::Input },
+			{ "g_normal_matrix", BuiltinTypeType::Mat4x4, ContextVariable::Input },
 
 			{ "g_projected_position", BuiltinTypeType::Vec4, ContextVariable::Output },
 			{ "g_world_position", BuiltinTypeType::Vec4, ContextVariable::Output },

@@ -133,8 +133,8 @@ private:
 	void Expression(SyntaxNode *parent);
 	std::unique_ptr<SyntaxNode> AssignmentExpression();
 	std::unique_ptr<SyntaxNode> RelationalExpression();
-	std::unique_ptr<SyntaxNode> MultipicativeExpression();
 	std::unique_ptr<SyntaxNode> AdditiveExpression();
+	std::unique_ptr<SyntaxNode> MultipicativeExpression();
 	std::unique_ptr<SyntaxNode> UnaryOperatorExpression();
 	std::unique_ptr<SyntaxNode> ExpressionAtom();
 	void IfStatement(SyntaxNode *parent);

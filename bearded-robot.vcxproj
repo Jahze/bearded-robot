@@ -43,6 +43,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>shady</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -55,6 +56,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>shady</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -74,6 +76,7 @@
     <ClInclude Include="Projection.h" />
     <ClInclude Include="Rasteriser.h" />
     <ClInclude Include="ScopedHDC.h" />
+    <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="Types.h" />
     <ClInclude Include="Vector.h" />
     <ClInclude Include="VertexShader.h" />
@@ -88,8 +91,17 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Projection.cpp" />
     <ClCompile Include="Rasteriser.cpp" />
+    <ClCompile Include="ShaderCompiler.cpp" />
     <ClCompile Include="Vector.cpp" />
     <ClCompile Include="VertexShader.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="shady\shady.vcxproj">
+      <Project>{f6e566d0-331b-49f5-84e1-00d24ea84d52}</Project>
+    </ProjectReference>
+    <ProjectReference Include="tokeniser\tokeniser.vcxproj">
+      <Project>{a242dee8-b01e-48a1-a362-5d886a956383}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

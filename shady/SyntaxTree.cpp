@@ -3,7 +3,7 @@
 #include "BuiltinTypes.h"
 #include "ProgramContext.h"
 #include "SyntaxTree.h"
-#include "TokenType.h"
+#include "Tokens.h"
 
 namespace
 {
@@ -322,6 +322,7 @@ void SyntaxTree::FunctionOrVariable()
 		AddSymbol(typeToken, nameToken, ScopeType::Global, SymbolType::Function);
 
 		m_currentFunction->SetReturnType(BuiltinType::FromName(typeToken.m_data));
+		m_currentFunction->SetExport(flags & SyntaxNodeFlags::Export);
 
 		FunctionBody(function);
 
@@ -541,7 +542,7 @@ void SyntaxTree::Expression(SyntaxNode *parent)
 
 std::unique_ptr<SyntaxNode> SyntaxTree::AssignmentExpression()
 {
-	std::unique_ptr<SyntaxNode> node = MultipicativeExpression();
+	std::unique_ptr<SyntaxNode> node = AdditiveExpression();
 
 	auto ParseRhs = [&] (SyntaxNodeType type, std::function<bool(BuiltinType*, BuiltinType*)> check, bool mult)
 	{
@@ -596,7 +597,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::AssignmentExpression()
 
 std::unique_ptr<SyntaxNode> SyntaxTree::RelationalExpression()
 {
-	std::unique_ptr<SyntaxNode> node = MultipicativeExpression();
+	std::unique_ptr<SyntaxNode> node = AdditiveExpression();
 
 	auto ParseRhs = [&](SyntaxNodeType type, std::function<bool(BuiltinType*,BuiltinType*)> check)
 	{
@@ -606,7 +607,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::RelationalExpression()
 
 		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, type));
 		operation->AddChild(std::move(node));
-		operation->AddChild(MultipicativeExpression());
+		operation->AddChild(AdditiveExpression());
 
 		if (! check(lhsType, m_currentExpressionType))
 			throw SyntaxException(next, "Cannot compare '" + lhsType->GetName() +
@@ -641,51 +642,9 @@ std::unique_ptr<SyntaxNode> SyntaxTree::RelationalExpression()
 	return std::move(node);
 }
 
-std::unique_ptr<SyntaxNode> SyntaxTree::MultipicativeExpression()
-{
-	std::unique_ptr<SyntaxNode> node = AdditiveExpression();
-
-	BuiltinType * lhsType = m_currentExpressionType;
-
-	if (Is(m_iterator->Peek(), TokenType::Multiply))
-	{
-		tokeniser::Token next = m_iterator->Next();
-
-		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Multiply));
-		operation->AddChild(std::move(node));
-		operation->AddChild(AdditiveExpression());
-
-		if (! CheckMultiplicativeExpressionCompatibility(lhsType, m_currentExpressionType))
-			throw SyntaxException(next, "Cannot multiply '" + lhsType->GetName() +
-				"' by '" + m_currentExpressionType->GetName() + "'");
-
-		m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
-
-		return std::move(operation);
-	}
-	else if (Is(m_iterator->Peek(), TokenType::Divide))
-	{
-		tokeniser::Token next = m_iterator->Next();
-
-		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Divide));
-		operation->AddChild(std::move(node));
-		operation->AddChild(AdditiveExpression());
-
-		if (! CheckExpressionsAreScalar(lhsType, m_currentExpressionType))
-			throw SyntaxException(next, "Cannot divide '" + lhsType->GetName() +
-				"' by '" + m_currentExpressionType->GetName() + "'");
-
-		m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
-
-		return std::move(operation);
-	}
-
-	return std::move(node);
-}
-
 std::unique_ptr<SyntaxNode> SyntaxTree::AdditiveExpression()
 {
-	std::unique_ptr<SyntaxNode> node = UnaryOperatorExpression();
+	std::unique_ptr<SyntaxNode> node = MultipicativeExpression();
 
 	BuiltinType *lhsType = m_currentExpressionType;
 
@@ -695,7 +654,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::AdditiveExpression()
 
 		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Add));
 		operation->AddChild(std::move(node));
-		operation->AddChild(UnaryOperatorExpression());
+		operation->AddChild(MultipicativeExpression());
 
 		if (! CheckAdditiveExpressionCompatibility(lhsType, m_currentExpressionType))
 			throw SyntaxException(next, "Cannot add '" + lhsType->GetName() +
@@ -711,7 +670,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::AdditiveExpression()
 
 		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Subtract));
 		operation->AddChild(std::move(node));
-		operation->AddChild(UnaryOperatorExpression());
+		operation->AddChild(MultipicativeExpression());
 
 		if (! CheckAdditiveExpressionCompatibility(lhsType, m_currentExpressionType))
 			throw SyntaxException(next, "Cannot subtract '" + lhsType->GetName() +
@@ -720,6 +679,51 @@ std::unique_ptr<SyntaxNode> SyntaxTree::AdditiveExpression()
 		m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
 
 		return std::move(operation);
+	}
+
+	return std::move(node);
+}
+
+std::unique_ptr<SyntaxNode> SyntaxTree::MultipicativeExpression()
+{
+	std::unique_ptr<SyntaxNode> node = UnaryOperatorExpression();
+
+	BuiltinType * lhsType = m_currentExpressionType;
+
+	while (Is(m_iterator->Peek(), TokenType::Multiply) || Is(m_iterator->Peek(), TokenType::Divide))
+	{
+		if (Is(m_iterator->Peek(), TokenType::Multiply))
+		{
+			tokeniser::Token next = m_iterator->Next();
+
+			std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Multiply));
+			operation->AddChild(std::move(node));
+			operation->AddChild(UnaryOperatorExpression());
+
+			if (! CheckMultiplicativeExpressionCompatibility(lhsType, m_currentExpressionType))
+				throw SyntaxException(next, "Cannot multiply '" + lhsType->GetName() +
+					"' by '" + m_currentExpressionType->GetName() + "'");
+
+			m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
+
+			node = std::move(operation);
+		}
+		else if (Is(m_iterator->Peek(), TokenType::Divide))
+		{
+			tokeniser::Token next = m_iterator->Next();
+
+			std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Divide));
+			operation->AddChild(std::move(node));
+			operation->AddChild(UnaryOperatorExpression());
+
+			if (! CheckExpressionsAreScalar(lhsType, m_currentExpressionType))
+				throw SyntaxException(next, "Cannot divide '" + lhsType->GetName() +
+					"' by '" + m_currentExpressionType->GetName() + "'");
+
+			m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
+
+			node = std::move(operation);
+		}
 	}
 
 	return std::move(node);
@@ -780,6 +784,8 @@ std::unique_ptr<SyntaxNode> SyntaxTree::ExpressionAtom()
 			if (! m_currentExpressionType->IsVector())
 				throw SyntaxException(token, "Type '" + m_currentExpressionType->GetName() + "' cannot be subscripted");
 
+			BuiltinType * vectorType = m_currentExpressionType;
+
 			std::unique_ptr<SyntaxNode> subscript = std::make_unique<SyntaxNode>(nullptr, SyntaxNodeType::Subscript);
 			subscript->AddChild(std::move(name));
 			subscript->AddChild(ExpressionAtom());
@@ -792,7 +798,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::ExpressionAtom()
 			if (! Is(token.m_type, TokenType::SquareBracketRight))
 				throw SyntaxException(token, "Expecting subscript end '['");
 
-			m_currentExpressionType = m_currentExpressionType->GetElementType();
+			m_currentExpressionType = vectorType->GetElementType();
 			name = std::move(subscript);
 		}
 
@@ -951,17 +957,16 @@ void SyntaxTree::ReturnStatement(SyntaxNode *parent)
 	{
 		Expression(statement);
 
-		if (! returnType || ! CheckAssignmentExpressionCompatibility(returnType, m_currentExpressionType))
+		if (returnType->GetType() == BuiltinTypeType::Void ||
+			! CheckAssignmentExpressionCompatibility(returnType, m_currentExpressionType))
 		{
-			std::string name = (returnType ? returnType->GetName() : "void");
-
 			throw SyntaxException(next, "Cannot return '" + m_currentExpressionType->GetName() + "' from a '" +
-				name + " function");
+				returnType->GetName() + " function");
 		}
 	}
 	else
 	{
-		if (returnType)
+		if (returnType->GetType() != BuiltinTypeType::Void)
 			throw SyntaxException(next, "Expecting return value of type '" + m_currentExpressionType->GetName() + "'");
 	}
 

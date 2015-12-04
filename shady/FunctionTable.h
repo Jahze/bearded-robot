@@ -26,6 +26,11 @@ public:
 
 	void SetReturnType(BuiltinTypeType type);
 
+	void SetExport(bool value)
+	{
+		m_isExport = value;
+	}
+
 	const std::string & GetName() const;
 
 	BuiltinType * GetReturnType() const
@@ -45,11 +50,17 @@ public:
 
 	Symbol * GetLocal(const std::string & name) const;
 
+	bool IsExport() const
+	{
+		return m_isExport;
+	}
+
 private:
 	Symbol * m_symbol;
 	std::vector<Symbol*> m_parameters;
 	std::vector<Symbol*> m_locals;
 	BuiltinType * m_type;
+	bool m_isExport = false;
 };
 
 class FunctionTable

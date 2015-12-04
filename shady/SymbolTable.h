@@ -1,9 +1,11 @@
 #pragma once
 
+#include <cassert>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "br.h"
 
 class BuiltinType;
 class Function;
@@ -20,6 +22,8 @@ enum class SymbolType
 	Variable,
 };
 
+// TODO : rename - doesn't just hold location for symbols also temps
+
 struct SymbolLocation
 {
 	enum Type
@@ -27,26 +31,45 @@ struct SymbolLocation
 		None,
 		GlobalMemory,
 		LocalMemory,
+
+		// TODO: check these two don't need to be considered specially in places
+		IndirectRegister,
+		RegisterPart,
+		//
+
 		Register,
 		XmmRegister,
 	};
 
 	Type m_type = None;
 	uint32_t m_data = 0u;
+	uint32_t m_shift = 0u;
 
 	bool InMemory() const
 	{
-		return m_type == GlobalMemory || m_type == LocalMemory;
+		return m_type == GlobalMemory || m_type == LocalMemory || m_type == IndirectRegister;
 	}
 
 	bool operator==(const SymbolLocation & rhs) const
 	{
+		assert(m_type != RegisterPart && rhs.m_type != RegisterPart);
 		return m_type == rhs.m_type && m_data == rhs.m_data;
 	}
 
 	bool operator!=(const SymbolLocation & rhs) const
 	{
 		return ! (*this == rhs);
+	}
+
+	void MakeIndirect()
+	{
+		assert(br::none_of(m_type, None, RegisterPart, IndirectRegister));
+
+		// TODO : if the pointer is in memory then spill a register and put it there
+
+		assert(! InMemory());
+
+		m_type = IndirectRegister;
 	}
 };
 

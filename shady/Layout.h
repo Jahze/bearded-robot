@@ -105,9 +105,12 @@ struct LayoutException
 class Layout
 {
 public:
+	uint32_t GlobalMemoryUsed();
+
 	void PlaceGlobal(Symbol * symbol);
 	void PlaceGlobalInMemory(Symbol * symbol);
-	SymbolLocation PlaceGlobalInMemory(float constant);
+	SymbolLocation PlaceGlobalFloatInMemory();
+	SymbolLocation PlaceGlobalVectorInMemory();
 
 	void PlaceParametersAndLocals(Function * function);
 	void RelinquishParametersAndLocals(Function * function);
@@ -122,6 +125,8 @@ public:
 		~StackLayout();
 
 		SymbolLocation PlaceTemporary(BuiltinType * type);
+		SymbolLocation PlaceTemporaryInMemory(BuiltinType * type);
+		SymbolLocation PlaceRegisterPart(XmmRegister reg, uint32_t shift);
 
 	private:
 		Layout * m_layout;
@@ -132,14 +137,16 @@ public:
 	class TemporaryRegister
 	{
 	public:
-		TemporaryRegister(Layout * layout, SymbolLocation location)
+		TemporaryRegister(Layout * layout, SymbolLocation location, SymbolLocation spiltRegister)
 			: m_layout(layout)
 			, m_location(location)
+			,m_spiltRegister(spiltRegister)
 		{ }
 
 		~TemporaryRegister()
 		{
-			m_layout->RelinquishLocation(m_location);
+			if (m_spiltRegister.m_type == SymbolLocation::None)
+				m_layout->RelinquishLocation(m_location);
 		}
 
 		uint32_t Register() const
@@ -152,17 +159,20 @@ public:
 			return m_location;
 		}
 
+		SymbolLocation SpiltLocation() const
+		{
+			return m_spiltRegister;
+		}
+
 	private:
 		Layout * m_layout;
 		SymbolLocation m_location;
+		SymbolLocation m_spiltRegister;
 	};
 
 	StackLayout TemporaryLayout();
 
-	bool HasFreeRegister() const;
 	std::unique_ptr<TemporaryRegister> GetFreeRegister();
-
-	bool HasXmmFreeRegister() const;
 	std::unique_ptr<TemporaryRegister> GetFreeXmmRegister();
 
 private:

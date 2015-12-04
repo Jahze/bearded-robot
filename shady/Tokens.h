@@ -1,5 +1,9 @@
 #pragma once
 
+#include "tokeniser\TokenDefinitions.h"
+
+tokeniser::TokenDefinitions CreateDefinitions();
+
 enum class TokenType : int
 {
 	Int,

@@ -29,6 +29,47 @@ SymbolLocation Layout::StackLayout::PlaceTemporary(BuiltinType * type)
 	return out;
 }
 
+SymbolLocation Layout::StackLayout::PlaceTemporaryInMemory(BuiltinType * type)
+{
+	SymbolLocation out;
+
+	m_layout->PlaceInMemory(type, out, ScopeType::Local);
+
+	m_locations.push_back(out);
+
+	return out;
+}
+
+SymbolLocation Layout::StackLayout::PlaceRegisterPart(XmmRegister reg, uint32_t shift)
+{
+	SymbolLocation out;
+
+	// check the memory has been allocated
+	assert(shift < m_layout->m_localMemory.Mark());
+
+	out.m_type = SymbolLocation::RegisterPart;
+	out.m_data = reg;
+	out.m_shift = shift;
+
+	// reg is a temporary so it's our job to give it back
+	if (! m_layout->m_xmmRegisters[static_cast<int>(reg)].second)
+	{
+		m_layout->m_xmmRegisters[static_cast<int>(reg)].second = true;
+
+		SymbolLocation temp;
+		temp.m_type = SymbolLocation::XmmRegister;
+		temp.m_data = reg;
+		m_locations.push_back(temp);
+	}
+
+	return out;
+}
+
+uint32_t Layout::GlobalMemoryUsed()
+{
+	return m_globalMemory.Mark();
+}
+
 void Layout::PlaceGlobal(Symbol * symbol)
 {
 	BuiltinType * type = symbol->GetType();
@@ -42,11 +83,20 @@ void Layout::PlaceGlobalInMemory(Symbol * symbol)
 	PlaceInMemory(symbol->GetType(), symbol->GetLocation(), ScopeType::Global);
 }
 
-SymbolLocation Layout::PlaceGlobalInMemory(float constant)
+SymbolLocation Layout::PlaceGlobalFloatInMemory()
 {
 	SymbolLocation out;
 
 	PlaceInMemory(BuiltinType::Get(BuiltinTypeType::Float), out, ScopeType::Global);
+
+	return out;
+}
+
+SymbolLocation Layout::PlaceGlobalVectorInMemory()
+{
+	SymbolLocation out;
+
+	PlaceInMemory(BuiltinType::Get(BuiltinTypeType::Vec4), out, ScopeType::Global);
 
 	return out;
 }
@@ -92,40 +142,25 @@ Layout::StackLayout Layout::TemporaryLayout()
 	return StackLayout(this);
 }
 
-bool Layout::HasFreeRegister() const
-{
-	for (auto && slot : m_registers)
-	{
-		if (! slot.second)
-			return true;
-	}
-
-	return false;
-}
-
 std::unique_ptr<Layout::TemporaryRegister> Layout::GetFreeRegister()
 {
 	Register reg;
 	bool result = NextRegisterSlot(reg);
 
-	assert(result);
+	SymbolLocation spiltLocation;
+
+	if (! result)
+	{
+		reg = Eax;
+		spiltLocation.m_type = SymbolLocation::LocalMemory;
+		spiltLocation.m_data = m_localMemory.Allocate(4, 4);
+	}
 
 	SymbolLocation location;
 	location.m_type = SymbolLocation::Register;
 	location.m_data = reg;
 
-	return std::make_unique<TemporaryRegister>(this, location);
-}
-
-bool Layout::HasXmmFreeRegister() const
-{
-	for (auto && slot : m_xmmRegisters)
-	{
-		if (! slot.second)
-			return true;
-	}
-
-	return false;
+	return std::make_unique<TemporaryRegister>(this, location, spiltLocation);
 }
 
 std::unique_ptr<Layout::TemporaryRegister> Layout::GetFreeXmmRegister()
@@ -133,13 +168,20 @@ std::unique_ptr<Layout::TemporaryRegister> Layout::GetFreeXmmRegister()
 	XmmRegister reg;
 	bool result = NextXmmRegisterSlot(reg);
 
-	assert(result);
+	SymbolLocation spiltLocation;
+
+	if (! result)
+	{
+		reg = Xmm0;
+		spiltLocation.m_type = SymbolLocation::LocalMemory;
+		spiltLocation.m_data = m_localMemory.Allocate(4, 4);
+	}
 
 	SymbolLocation location;
 	location.m_type = SymbolLocation::XmmRegister;
 	location.m_data = reg;
 
-	return std::make_unique<TemporaryRegister>(this, location);
+	return std::make_unique<TemporaryRegister>(this, location, spiltLocation);
 }
 
 bool Layout::StandardPlacement(BuiltinType * type, SymbolLocation & location, ScopeType scope)

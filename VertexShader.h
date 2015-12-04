@@ -5,6 +5,7 @@
 
 class Camera;
 class Projection;
+class ShadyObject;
 
 struct VertexShaderOutput
 {
@@ -18,7 +19,7 @@ struct VertexShaderOutput
 class VertexShader
 {
 public:
-	VertexShader(const Projection & projection);
+	VertexShader(const Projection & projection, ShadyObject * shader);
 
 	VertexShaderOutput Execute(const Vector3 & vertex) const;
 	VertexShaderOutput Execute(const Vector3 & vertex, const Vector3 & normal) const;
@@ -40,4 +41,5 @@ private:
 	Matrix4 m_modelTransform;
 	Matrix4 m_viewTransform;
 	Matrix4 m_precomputedModelView;
+	ShadyObject *m_shader;
 };

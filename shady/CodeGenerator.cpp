@@ -4,6 +4,7 @@
 #include "BuiltinTypes.h"
 #include "CodeGenerator.h"
 #include "ProgramContext.h"
+#include "ShadyObject.h"
 #include "SymbolTable.h"
 #include "SyntaxTree.h"
 
@@ -55,6 +56,35 @@ namespace
 		oss << "0x" << std::hex << value;
 		return oss.str();
 	}
+
+	BuiltinType * DominantScalarType(BuiltinType * type1, BuiltinType * type2)
+	{
+		assert(type1->IsScalar());
+		assert(type2->IsScalar());
+
+		if (type1->GetType() == BuiltinTypeType::Float)
+			return type1;
+
+		return type2;
+	}
+
+	SymbolLocation SelectOutputLocation(bool isAssign, Layout::StackLayout & stack, const SymbolLocation & lhs,
+		BuiltinType *type)
+	{
+		if (isAssign)
+			return lhs;
+
+		return stack.PlaceTemporary(type);
+	}
+
+	bool IsAssignment(SyntaxNodeType type)
+	{
+		return type == SyntaxNodeType::Assign
+			|| type == SyntaxNodeType::AddAssign
+			|| type == SyntaxNodeType::SubtractAssign
+			|| type == SyntaxNodeType::MultiplyAssign
+			|| type == SyntaxNodeType::DivideAssign;
+	}
 }
 
 namespace instruction
@@ -63,7 +93,7 @@ namespace instruction
 	{
 		"imul",		{ 0x0F, 0xAF },
 		"mulss",	{ 0xF3, 0x0F, 0x59 },
-		"",			{}
+		"mulps",	{ 0x0F, 0x59 }
 	};
 
 	Instruction Divide
@@ -72,12 +102,31 @@ namespace instruction
 		"divss",	{ 0xF3, 0x0F, 0x5E },
 		"",			{}
 	};
+
+	Instruction Add
+	{
+		"add",		{ 0x03 },
+		"addss",	{ 0xF3, 0x0F, 0x58 },
+		"addps",	{ 0x0F, 0x58 }
+	};
+
+	Instruction Subtract
+	{
+		"sub",		{ 0x2B },
+		"addss",	{ 0xF3, 0x0F, 0x5C },
+		"addps",	{ 0x0F, 0x5C }
+	};
 }
 
+// RENAME : something about ensuring it's in register for the duration
+// TODO : need to pass in unspillable locations
 class OperandAssistant
 {
 public:
 	OperandAssistant(CodeGenerator *generator, SymbolLocation & location, BuiltinType * type)
+		: m_generator(generator)
+		, m_oldLocation(location)
+		, m_oldType(type)
 	{
 		if (! location.InMemory())
 			return;
@@ -99,15 +148,32 @@ public:
 		}
 
 		location = m_register->Location();
+
+		SymbolLocation spiltLocation = m_register->SpiltLocation();
+
+		if (spiltLocation.m_type != SymbolLocation::None)
+			m_generator->GenerateWrite({ spiltLocation, type }, { location, type });
 	}
 
 	~OperandAssistant()
 	{
-		// TODO : write register back to memory
+		// write register back to memory
+		if (bool(m_register))
+		{
+			m_generator->GenerateWrite({ m_oldLocation, m_oldType }, { m_register->Location(), m_oldType });
+
+			SymbolLocation spiltLocation = m_register->SpiltLocation();
+
+			if (spiltLocation.m_type != SymbolLocation::None)
+				m_generator->GenerateWrite({ m_register->Location(), m_oldType }, { spiltLocation, m_oldType });
+		}
 	}
 
 private:
+	CodeGenerator *m_generator;
 	std::unique_ptr<Layout::TemporaryRegister> m_register;
+	SymbolLocation m_oldLocation;
+	BuiltinType *m_oldType;
 };
 
 const Instruction::Variant & Instruction::GetVariant(BuiltinType * type) const
@@ -139,7 +205,7 @@ CodeGenerator::CodeGenerator(uint32_t globalMemory, const ProgramContext & conte
 	InitialLayout();
 }
 
-void CodeGenerator::Generate(SyntaxNode * root)
+void CodeGenerator::Generate(ShadyObject * object, SyntaxNode * root)
 {
 	for (auto && node : root->m_nodes)
 	{
@@ -157,6 +223,11 @@ void CodeGenerator::Generate(SyntaxNode * root)
 			throw std::runtime_error("malformed syntax tree");
 		}
 	}
+
+	object->ReserveGlobalSize(m_layout.GlobalMemoryUsed());
+	object->NoteGlobals(m_symbolTable);
+	object->WriteConstants(m_constantFloats, m_constantVectors);
+	object->WriteFunctions(m_functions);
 }
 
 void CodeGenerator::InitialLayout()
@@ -200,6 +271,7 @@ void CodeGenerator::ProcessFunction(SyntaxNode * functionNode)
 	m_currentFunctionCode.Reset();
 
 	m_currentFunction = m_functionTable.FindFunction(functionNode->m_data);
+	m_currentFunctionCode.m_isExport = m_currentFunction->IsExport();
 
 	assert(m_currentFunction);
 
@@ -249,6 +321,11 @@ void CodeGenerator::ProcessFunction(SyntaxNode * functionNode)
 		}
 
 		case SyntaxNodeType::Return:
+			// TODO : return values
+			CodeBytes({ 0xC3 });
+			DebugAsm("ret");
+			break;
+
 		default:
 			throw std::runtime_error("malformed syntax tree");
 		}
@@ -275,16 +352,32 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessExpression(Layout::StackLa
 		return ProcessAssign(stack, expression);
 
 	case SyntaxNodeType::Multiply:
-		return ProcessMultiply(stack, expression);
+		return ProcessMultiply(stack, expression, false);
+
+	case SyntaxNodeType::Divide:
+		return ProcessDivide(stack, expression, false);
+
+	case SyntaxNodeType::Add:
+		return ProcessAdd(stack, expression, false);
+
+	case SyntaxNodeType::Subtract:
+		return ProcessSubtract(stack, expression, false);
+
+	// TODO : assign instructions can't convert result to correct scalar type
+	case SyntaxNodeType::MultiplyAssign:
+		return ProcessMultiply(stack, expression, true);
+
+	case SyntaxNodeType::DivideAssign:
+		return ProcessDivide(stack, expression, true);
 
 	case SyntaxNodeType::AddAssign:
+		return ProcessAdd(stack, expression, true);
+
 	case SyntaxNodeType::SubtractAssign:
-	case SyntaxNodeType::MultiplyAssign:
-	case SyntaxNodeType::DivideAssign:
-	case SyntaxNodeType::Divide:
-	case SyntaxNodeType::Add:
-	case SyntaxNodeType::Subtract:
+		return ProcessSubtract(stack, expression, true);
+
 	case SyntaxNodeType::Subscript:
+		return ProcessSubscript(stack, expression);
 
 	case SyntaxNodeType::Negate:
 	case SyntaxNodeType::LogicalNegate:
@@ -311,12 +404,12 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessLiteral(Layout::StackLayou
 		float value = std::stof(literal->m_data);
 		SymbolLocation location;
 
-		auto iter = m_constants.find(value);
+		auto iter = m_constantFloats.find(value);
 
-		if (iter == m_constants.end())
+		if (iter == m_constantFloats.end())
 		{
-			location = m_layout.PlaceGlobalInMemory(value);
-			m_constants[value] = location;
+			location = m_layout.PlaceGlobalFloatInMemory();
+			m_constantFloats[value] = location;
 		}
 		else
 		{
@@ -363,10 +456,10 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessName(Layout::StackLayout &
 	return { symbol->GetLocation(), symbol->GetType() };
 }
 
-CodeGenerator::ValueDescription CodeGenerator::ProcessMultiply(Layout::StackLayout & stack, SyntaxNode * multiply)
+CodeGenerator::ValueDescription CodeGenerator::ProcessMultiply(Layout::StackLayout & stack, SyntaxNode * multiply,
+	bool isAssign)
 {
 	assert(multiply->m_nodes.size() == 2);
-
 
 	ValueDescription lhs;
 	ValueDescription rhs;
@@ -384,7 +477,7 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessMultiply(Layout::StackLayo
 	{
 		if (rhs.type->IsMatrix())
 		{
-			SymbolLocation out = stack.PlaceTemporary(rhs.type);
+			SymbolLocation out = SelectOutputLocation(isAssign, stack, lhs.location, rhs.type);
 			GenerateMultiplyMatrixMatrix(lhs, rhs, out);
 			return { out, rhs.type };
 		}
@@ -399,19 +492,325 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessMultiply(Layout::StackLayo
 	{
 		if (rhs.type->IsScalar())
 		{
-			SymbolLocation out = stack.PlaceTemporary(lhs.type);
+			SymbolLocation out = SelectOutputLocation(isAssign, stack, lhs.location, lhs.type);
 			GenerateMultiplyVectorScalar(lhs, rhs, out);
 			return { out, lhs.type };
 		}
 	}
 	else if (lhs.type->IsScalar())
 	{
-		SymbolLocation out = stack.PlaceTemporary(rhs.type);
-		GenerateMultiplyScalarScalar(lhs, rhs, out);
-		return { out, lhs.type };
+		BuiltinType * resultType = DominantScalarType(lhs.type, rhs.type);
+		SymbolLocation out = SelectOutputLocation(isAssign, stack, lhs.location, resultType);
+		GenerateInstruction(true, instruction::Multiply, lhs, rhs, out);
+		return { out, resultType };
 	}
 
 	throw std::runtime_error("malformed syntax tree");
+}
+
+CodeGenerator::ValueDescription CodeGenerator::ProcessDivide(Layout::StackLayout & stack, SyntaxNode * divide,
+	bool isAssign)
+{
+	assert(divide->m_nodes.size() == 2);
+
+	ValueDescription lhs;
+	ValueDescription rhs;
+
+	{
+		Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+		lhs = ProcessExpression(subStack, divide->m_nodes[0].get());
+		rhs = ProcessExpression(subStack, divide->m_nodes[1].get());
+
+		// temporary locations get given back here so destination and source can be the same
+	}
+
+	// TODO : integer division - idiv is weird only one operand
+
+	if (lhs.type->IsScalar() && rhs.type->IsScalar())
+	{
+		BuiltinType * resultType = DominantScalarType(lhs.type, rhs.type);
+		SymbolLocation out = SelectOutputLocation(isAssign, stack, lhs.location, resultType);
+		GenerateInstruction(false, instruction::Divide, lhs, rhs, out);
+		return { out, resultType };
+	}
+
+	throw std::runtime_error("malformed syntax tree");
+}
+
+CodeGenerator::ValueDescription CodeGenerator::ProcessAdd(Layout::StackLayout & stack, SyntaxNode * add, bool isAssign)
+{
+	assert(add->m_nodes.size() == 2);
+
+	ValueDescription lhs;
+	ValueDescription rhs;
+
+	{
+		Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+		lhs = ProcessExpression(subStack, add->m_nodes[0].get());
+		rhs = ProcessExpression(subStack, add->m_nodes[1].get());
+
+		// temporary locations get given back here so destination and source can be the same
+	}
+
+	if (lhs.type->IsVector())
+	{
+		assert(lhs.type == rhs.type);
+
+		SymbolLocation out = SelectOutputLocation(isAssign, stack, lhs.location, lhs.type);
+		GenerateVectorInstruction(true, instruction::Add, lhs, rhs, out);
+		return { out, lhs.type };
+	}
+	else if (lhs.type->IsScalar())
+	{
+		assert(rhs.type->IsScalar());
+
+		BuiltinType * resultType = DominantScalarType(lhs.type, rhs.type);
+		SymbolLocation out = SelectOutputLocation(isAssign, stack, lhs.location, resultType);
+		GenerateInstruction(true, instruction::Add, lhs, rhs, out);
+		return { out, resultType };
+	}
+
+	throw std::runtime_error("malformed syntax tree");
+}
+
+CodeGenerator::ValueDescription CodeGenerator::ProcessSubtract(Layout::StackLayout & stack, SyntaxNode * subtract,
+	bool isAssign)
+{
+	assert(subtract->m_nodes.size() == 2);
+
+	ValueDescription lhs;
+	ValueDescription rhs;
+
+	{
+		Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+		lhs = ProcessExpression(subStack, subtract->m_nodes[0].get());
+		rhs = ProcessExpression(subStack, subtract->m_nodes[1].get());
+
+		// temporary locations get given back here so destination and source can be the same
+	}
+
+	if (lhs.type->IsVector())
+	{
+		assert(lhs.type == rhs.type);
+
+		SymbolLocation out = SelectOutputLocation(isAssign, stack, lhs.location, lhs.type);
+		GenerateVectorInstruction(false, instruction::Subtract, lhs, rhs, out);
+		return { out, lhs.type };
+	}
+	else if (lhs.type->IsScalar())
+	{
+		assert(rhs.type->IsScalar());
+
+		BuiltinType * resultType = DominantScalarType(lhs.type, rhs.type);
+		SymbolLocation out = SelectOutputLocation(isAssign, stack, lhs.location, resultType);
+		GenerateInstruction(false, instruction::Subtract, lhs, rhs, out);
+		return { out, resultType };
+	}
+
+	throw std::runtime_error("malformed syntax tree");
+}
+
+CodeGenerator::ValueDescription CodeGenerator::ProcessSubscript(Layout::StackLayout & stack, SyntaxNode * subscript)
+{
+	assert(subscript->m_nodes.size() == 2);
+
+	ValueDescription lhs;
+	ValueDescription rhs;
+
+	{
+		Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+		lhs = ProcessExpression(subStack, subscript->m_nodes[0].get());
+		rhs = ProcessExpression(subStack, subscript->m_nodes[1].get());
+
+		// temporary locations get given back here so destination and source can be the same
+	}
+
+	assert(lhs.type->IsVector());
+
+	if (lhs.type->IsMatrix())
+	{
+		// TODO : can optimise if index is constant
+
+		const uint32_t stride = 4 * 4;
+
+		SymbolLocation indexLocation = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Int));
+		ValueDescription indexValue = { indexLocation, BuiltinType::Get(BuiltinTypeType::Int) };
+
+		if (indexLocation == rhs.location)
+		{
+			OperandAssistant assistant(this, indexLocation, BuiltinType::Get(BuiltinTypeType::Int));
+			CodeBytes(0x69);
+			CodeBytes(ConstructModRM(indexLocation, indexLocation));
+			CodeBytes(br::as_bytes(stride));
+
+			DebugAsm("mul $,$,$",
+				TranslateValue(indexValue),
+				TranslateValue(indexValue),
+				stride);
+		}
+		else
+		{
+			GenerateWrite(indexValue, stride);
+			GenerateInstruction(true, instruction::Multiply, indexValue, rhs, indexValue.location);
+		}
+
+		{
+			Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+			SymbolLocation addressLocation = subStack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Int));
+			ValueDescription addressValue = { addressLocation, BuiltinType::Get(BuiltinTypeType::Int) };
+
+			assert(lhs.location.InMemory());
+
+			GenerateWrite(addressValue, lhs.location.m_data + m_globalMemory);
+			GenerateInstruction(true, instruction::Add, indexValue, addressValue, indexLocation);
+
+			indexLocation.MakeIndirect();
+
+			return { indexLocation, lhs.type->GetElementType() };
+		}
+	}
+	else if (lhs.type->IsVector())
+	{
+		Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+		if (lhs.location.InMemory())
+		{
+			const uint32_t stride = 4;
+
+			SymbolLocation indexLocation = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Int));
+			ValueDescription indexValue = { indexLocation, BuiltinType::Get(BuiltinTypeType::Int) };
+
+			if (indexLocation == rhs.location)
+			{
+				OperandAssistant assistant(this, indexLocation, BuiltinType::Get(BuiltinTypeType::Int));
+				CodeBytes(0x69);
+				CodeBytes(ConstructModRM(indexLocation, indexLocation));
+				CodeBytes(br::as_bytes(stride));
+
+				DebugAsm("mul $,$,$",
+					TranslateValue(indexValue),
+					TranslateValue(indexValue),
+					stride);
+			}
+			else
+			{
+				GenerateWrite(indexValue, stride);
+				GenerateInstruction(true, instruction::Multiply, indexValue, rhs, indexValue.location);
+			}
+
+			SymbolLocation addressLocation = subStack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Int));
+			ValueDescription addressValue = { addressLocation, BuiltinType::Get(BuiltinTypeType::Int) };
+
+			GenerateWrite(addressValue, lhs.location.m_data + m_globalMemory);
+			GenerateInstruction(true, instruction::Add, indexValue, addressValue, indexLocation);
+
+			indexLocation.MakeIndirect();
+
+			return { indexLocation, lhs.type->GetElementType() };
+		}
+		else
+		{
+			SymbolLocation shiftLocation = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Int));
+
+			if (! shiftLocation.InMemory())
+			{
+				shiftLocation = subStack.PlaceTemporaryInMemory(rhs.type);
+				GenerateWrite({ shiftLocation, rhs.type }, rhs);
+			}
+			else if (shiftLocation != rhs.location)
+			{
+				GenerateWrite({ shiftLocation, rhs.type }, rhs);
+			}
+
+			ValueDescription shiftValue = { shiftLocation, rhs.type };
+
+			{
+				Layout::StackLayout subStack2 = m_layout.TemporaryLayout();
+
+				SymbolLocation temp = subStack2.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Int));
+				ValueDescription tempValue = { temp, BuiltinType::Get(BuiltinTypeType::Int) };
+
+				const uint32_t stride = 4;
+
+				GenerateWrite(tempValue, 4 * 8);
+				GenerateInstruction(true, instruction::Multiply, shiftValue, tempValue, shiftValue.location);
+			}
+
+			assert(lhs.location.m_type == SymbolLocation::XmmRegister);
+
+			SymbolLocation out =
+				stack.PlaceRegisterPart(static_cast<XmmRegister>(lhs.location.m_data), shiftLocation.m_data);
+
+			if (! IsAssignment(subscript->m_parent->m_type))
+				return ResolveRegisterPart(stack, { out, lhs.type->GetElementType() });
+
+			return { out, lhs.type->GetElementType() };
+		}
+	}
+
+	throw std::runtime_error("malformed syntax tree");
+}
+
+CodeGenerator::ValueDescription CodeGenerator::ResolveRegisterPart(Layout::StackLayout & stack, ValueDescription value)
+{
+	if (value.location.m_type == SymbolLocation::RegisterPart)
+	{
+		SymbolLocation out = stack.PlaceTemporary(value.type);
+
+		SymbolLocation valueLocation;
+		valueLocation.m_type = SymbolLocation::XmmRegister;
+		valueLocation.m_data = value.location.m_data;
+
+		SymbolLocation shift;
+		SymbolLocation::LocalMemory;
+		shift.m_data = value.location.m_shift;
+
+		// TODO : reuse value register location for out if temporary
+
+		assert(out.m_type == SymbolLocation::XmmRegister);
+
+		GenerateWrite({ out, value.type }, { valueLocation, value.type });
+
+		CodeBytes({ 0x66, 0x0F, 0xD2 });
+		CodeBytes(ConstructModRM(out, shift));
+
+		DebugAsm("psrld $,$",
+			TranslateValue({ out, value.type }),
+			TranslateValue({ shift, value.type }));
+
+		const int one = 1;
+		std::tuple<float, float, float, float> constant { 0.0f, 0.0f, 0.0f, *reinterpret_cast<const float*>(&one) };
+
+		SymbolLocation constantLocation;
+
+		auto iter = m_constantVectors.find(constant);
+
+		if (iter == m_constantVectors.end())
+		{
+			constantLocation = m_layout.PlaceGlobalFloatInMemory();
+			m_constantVectors[constant] = constantLocation;
+		}
+		else
+		{
+			constantLocation = iter->second;
+		}
+
+		CodeBytes({ 0x0F, 0x54 });
+		CodeBytes(ConstructModRM(out, constantLocation));
+
+		DebugAsm("andps $,$",
+			TranslateValue({ out, value.type }),
+			TranslateValue({ constantLocation, value.type }));
+
+		return { out, value.type };
+	}
+
+	return value;
 }
 
 void CodeGenerator::GenerateWrite(const ValueDescription & target, uint32_t literal)
@@ -426,7 +825,9 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, uint32_t lite
 	CodeBytes(ConstructModRM(target.location, 0x0));
 	CodeBytes(br::as_bytes(literal));
 
-	m_currentFunctionCode.m_asm += "mov " + TranslateValue(target) + ", " + std::to_string(literal) + "\n";
+	DebugAsm("mov $,$",
+		TranslateValue(target),
+		std::to_string(literal));
 }
 
 void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDescription & source)
@@ -437,8 +838,6 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 		throw std::runtime_error("malformed syntax tree");
 	}
 
-	// TODO : global memory is not [rsi+x] but abs value that must be relocated
-
 	if (target.location.InMemory() && source.location.InMemory())
 	{
 		// TODO : get layout->hasfreeregister and spill otherwise
@@ -446,13 +845,27 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 
 		const uint32_t size = source.type->GetSize();
 
+		SymbolLocation copySource = source.location;
+		SymbolLocation copyTarget = target.location;
+
 		for (uint32_t i = 0; i < size; i += 4)
 		{
-			m_currentFunctionCode.m_asm += "mov " + RegToStr(reg->Register()) + ", [rsi+"
-				+ std::to_string(source.location.m_data + i) + "]\n";
+			CodeBytes(0x8B);
+			CodeBytes(ConstructModRM(reg->Location(), copySource));
 
-			m_currentFunctionCode.m_asm += "mov [rsi+" + std::to_string(target.location.m_data + i)
-				+ "], " + std::to_string(reg->Register()) + "\n";
+			DebugAsm("mov $,$",
+				TranslateValue({ reg->Location(), BuiltinType::Get(BuiltinTypeType::Int) }),
+				TranslateValue({ copySource, BuiltinType::Get(BuiltinTypeType::Int) }));
+
+			CodeBytes(0x89);
+			CodeBytes(ConstructModRM(copyTarget, reg->Location()));
+
+			DebugAsm("mov $,$",
+				TranslateValue({ copyTarget, BuiltinType::Get(BuiltinTypeType::Int) }),
+				TranslateValue({ reg->Location(), BuiltinType::Get(BuiltinTypeType::Int) }));
+
+			copySource.m_data += 4;
+			copyTarget.m_data += 4;
 		}
 	}
 	else
@@ -462,11 +875,19 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 		std::string instruction;
 		std::vector<uint8_t> bytes;
 
+		SymbolLocation out = target.location;
+
+		if (out.m_type == SymbolLocation::RegisterPart)
+		{
+			Layout::StackLayout subStack = m_layout.TemporaryLayout();
+			out = ResolveRegisterPart(subStack, target).location;
+		}
+
 		if (type->IsVector())
 		{
 			instruction = "vmovaps ";
 
-			if (target.location.InMemory())
+			if (out.InMemory())
 				CodeBytes({ 0x0f, 0x29 });
 			else
 				CodeBytes({ 0x0f, 0x28 });
@@ -475,7 +896,7 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 		{
 			instruction = "movss ";
 
-			if (target.location.InMemory())
+			if (out.InMemory())
 				CodeBytes({ 0xf3, 0x0f, 0x11 });
 			else
 				CodeBytes({ 0xf3, 0x0f, 0x10 });
@@ -484,24 +905,194 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 		{
 			instruction = "mov ";
 
-			if (target.location.InMemory())
+			if (out.InMemory())
 				CodeBytes({ 0x89 });
 			else
 				CodeBytes({ 0x8b });
 		}
 
-		CodeBytes(ConstructModRM(target.location, source.location));
+		CodeBytes(ConstructModRM(out, source.location));
 
-		m_currentFunctionCode.m_asm += instruction + TranslateValue(target) + ", " + TranslateValue(source) + "\n";
+		DebugAsm(instruction + " $,$",
+			TranslateValue({ out, type }),
+			TranslateValue(source));
+
+		if (target.location.m_type == SymbolLocation::RegisterPart)
+		{
+			SymbolLocation shift;
+			SymbolLocation::LocalMemory;
+			shift.m_data = target.location.m_shift;
+
+			CodeBytes({ 0x66, 0x0F, 0xF2 });
+			CodeBytes(ConstructModRM(out, shift));
+
+			DebugAsm("pslld $,$",
+				TranslateValue({ out, type }),
+				TranslateValue({ shift, type }));
+
+			CodeBytes({ 0x0F, 0x58 });
+			CodeBytes(ConstructModRM(target.location, out));
+
+			DebugAsm("addps $,$",
+				TranslateValue(target),
+				TranslateValue({ out, type }));
+		}
 	}
 }
 
 void CodeGenerator::GenerateMultiplyMatrixMatrix(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
 {
+	assert(lhs.location.InMemory() && rhs.location.InMemory());
+	assert(lhs.type->IsMatrix() && rhs.type->IsMatrix());
+	assert(lhs.type->GetElementType() == rhs.type->GetElementType());
+
+	std::unique_ptr<Layout::TemporaryRegister> xmm0 = m_layout.GetFreeXmmRegister();
+	std::unique_ptr<Layout::TemporaryRegister> xmm1 = m_layout.GetFreeXmmRegister();
+	std::unique_ptr<Layout::TemporaryRegister> xmm2 = m_layout.GetFreeXmmRegister();
+	std::unique_ptr<Layout::TemporaryRegister> xmm3 = m_layout.GetFreeXmmRegister();
+
+	BuiltinType * vectorType = rhs.type->GetElementType();
+	ValueDescription currentRow = { rhs.location, vectorType };
+
+	GenerateWrite({ xmm0->Location(), vectorType }, currentRow);
+	currentRow.location.m_data += 4 * 4;
+
+	GenerateWrite({ xmm1->Location(), vectorType }, currentRow);
+	currentRow.location.m_data += 4 * 4;
+
+	GenerateWrite({ xmm2->Location(), vectorType }, currentRow);
+	currentRow.location.m_data += 4 * 4;
+
+	GenerateWrite({ xmm3->Location(), vectorType }, currentRow);
+	currentRow.location.m_data += 4 * 4;
+
+	currentRow = { lhs.location, vectorType->GetElementType() };
+
+	for (int i = 0; i < 4; ++i)
+	{
+		Layout::StackLayout stack = m_layout.TemporaryLayout();
+
+		SymbolLocation lhsRow0 = GenerateExplodeFloat(stack, currentRow);
+		currentRow.location.m_data += 4;
+
+		{
+			Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+			SymbolLocation lhsRow1 = GenerateExplodeFloat(subStack, currentRow);
+			currentRow.location.m_data += 4;
+
+			GenerateInstruction(true, instruction::Multiply,
+				{ lhsRow0, vectorType }, { xmm0->Location(), vectorType }, lhsRow0);
+
+			GenerateInstruction(true, instruction::Multiply,
+				{ lhsRow1, vectorType }, { xmm1->Location(), vectorType }, lhsRow1);
+
+			GenerateInstruction(true, instruction::Add, { lhsRow0, vectorType }, { lhsRow1, vectorType }, lhsRow0);
+		}
+
+		{
+			Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+			SymbolLocation lhsRow1 = GenerateExplodeFloat(subStack, currentRow);
+			currentRow.location.m_data += 4;
+
+			SymbolLocation lhsRow2 = GenerateExplodeFloat(subStack, currentRow);
+			currentRow.location.m_data += 4;
+
+			GenerateInstruction(true, instruction::Multiply,
+				{ lhsRow1, vectorType }, { xmm2->Location(), vectorType }, lhsRow1);
+
+			GenerateInstruction(true, instruction::Multiply,
+				{ lhsRow2, vectorType }, { xmm3->Location(), vectorType }, lhsRow2);
+
+			GenerateInstruction(true, instruction::Add, { lhsRow1, vectorType }, { lhsRow2, vectorType }, lhsRow1);
+			GenerateInstruction(true, instruction::Add, { lhsRow0, vectorType }, { lhsRow1, vectorType }, lhsRow0);
+		}
+
+		GenerateWrite({ out, vectorType }, { lhsRow0, vectorType });
+		out.m_data += 4 * 4;
+	}
 }
 
 void CodeGenerator::GenerateMultiplyMatrixVector(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
 {
+	assert(lhs.location.InMemory());
+	assert(lhs.type->IsMatrix());
+	assert(rhs.type->IsVector());
+	assert(lhs.type->GetElementType() == rhs.type);
+
+	std::unique_ptr<Layout::TemporaryRegister> xmm0;
+	std::unique_ptr<Layout::TemporaryRegister> xmm1 = m_layout.GetFreeXmmRegister();
+	std::unique_ptr<Layout::TemporaryRegister> xmm2 = m_layout.GetFreeXmmRegister();
+	std::unique_ptr<Layout::TemporaryRegister> xmm3;
+
+	SymbolLocation xmm0Location;
+	bool skipOutWrite = false;
+
+	if (out.m_type == SymbolLocation::XmmRegister)
+	{
+		xmm0Location = out;
+		skipOutWrite = true;
+	}
+	else
+	{
+		xmm0 = m_layout.GetFreeXmmRegister();
+		xmm0Location = xmm0->Location();
+	}
+
+	SymbolLocation vectorLocation;
+
+	if (rhs.location.InMemory())
+	{
+		xmm3 = m_layout.GetFreeXmmRegister();
+		vectorLocation = xmm3->Location();
+		GenerateWrite({ vectorLocation, rhs.type }, rhs);
+	}
+	else
+	{
+		vectorLocation = rhs.location;
+	}
+
+	ValueDescription vectorValue = { vectorLocation, rhs.type };
+	ValueDescription currentRow = { lhs.location, rhs.type };
+
+	GenerateWrite({ xmm0Location, rhs.type }, currentRow);
+	currentRow.location.m_data += 4 * 4;
+
+	GenerateWrite({ xmm1->Location(), rhs.type }, currentRow);
+	currentRow.location.m_data += 4 * 4;
+
+	GenerateInstruction(true, instruction::Multiply, { xmm0Location, rhs.type }, vectorValue, xmm0Location);
+	GenerateInstruction(true, instruction::Multiply, { xmm1->Location(), rhs.type }, vectorValue, xmm1->Location());
+
+	auto WriteHadd = [this, &rhs](SymbolLocation first, SymbolLocation second)
+	{
+		CodeBytes({ 0xF2, 0x0F, 0x7C });
+		CodeBytes(ConstructModRM(first, second));
+
+		DebugAsm("haddps $,$",
+			TranslateValue({ first, rhs.type }),
+			TranslateValue({ second, rhs.type }));
+	};
+
+	WriteHadd(xmm0Location, xmm1->Location());
+
+	GenerateWrite({ xmm1->Location(), rhs.type }, currentRow);
+	currentRow.location.m_data += 4 * 4;
+
+	GenerateWrite({ xmm2->Location(), rhs.type }, currentRow);
+	currentRow.location.m_data += 4 * 4;
+
+	GenerateInstruction(true, instruction::Multiply, { xmm1->Location(), rhs.type }, vectorValue, xmm1->Location());
+	GenerateInstruction(true, instruction::Multiply, { xmm2->Location(), rhs.type }, vectorValue, xmm2->Location());
+
+	WriteHadd(xmm1->Location(), xmm2->Location());
+	WriteHadd(xmm0Location, xmm1->Location());
+
+	if (! skipOutWrite)
+	{
+		GenerateWrite({ out, rhs.type }, { xmm0Location, rhs.type });
+	}
 }
 
 void CodeGenerator::GenerateMultiplyVectorScalar(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
@@ -520,29 +1111,7 @@ void CodeGenerator::GenerateMultiplyVectorScalar(ValueDescription lhs, ValueDesc
 	Layout::StackLayout stack = m_layout.TemporaryLayout();
 
 	// expode rhs into 4
-	SymbolLocation scalars = stack.PlaceTemporary(vectorType);
-
-	if (scalars.InMemory())
-	{
-		SymbolLocation l = scalars;
-
-		for (int i = 0; i < 4; ++i)
-		{
-			GenerateWrite({ l, rhs.type }, rhs);
-			l.m_data += 4;
-		}
-	}
-	else
-	{
-		GenerateWrite({ scalars, rhs.type }, rhs);
-
-		CodeBytes({ 0x0F, 0xC6 });
-		CodeBytes(ConstructModRM(scalars, scalars));
-		CodeBytes(0x00);
-
-		m_currentFunctionCode.m_asm += "shufps " + TranslateValue({ scalars, rhs.type }) +
-			", " + TranslateValue({ scalars, rhs.type }) + ", 0\n";
-	}
+	SymbolLocation scalars = GenerateExplodeFloat(stack, rhs);
 
 	// out contains lhs
 	// XXX: it's important the exploding happens before as rhs might use the same temporary as out
@@ -554,52 +1123,9 @@ void CodeGenerator::GenerateMultiplyVectorScalar(ValueDescription lhs, ValueDesc
 	CodeBytes({ 0x0F, 0x59 });
 	CodeBytes(ConstructModRM(out, scalars));
 
-	m_currentFunctionCode.m_asm += "mulps " + TranslateValue({ out, vectorType }) +
-		", " + TranslateValue({ scalars, vectorType }) + ", 0\n";
-}
-
-void CodeGenerator::GenerateMultiplyScalarScalar(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
-{
-	if (lhs.type != rhs.type)
-	{
-		// TODO : convert between float and int
-		throw std::runtime_error("malformed syntax tree");
-	}
-
-	BuiltinType * type = lhs.type;
-
-	// make sure out is in a register
-	OperandAssistant assistant(this, out, type);
-
-	// make out equal to one side of the multiplication (if it isn't)
-	if (lhs.location != out && rhs.location != out)
-	{
-		GenerateWrite({ out, type }, lhs);
-	}
-	else if (lhs.location != out && rhs.location == out)
-	{
-		// multiplication is commutitive
-		std::swap(lhs, rhs);
-	}
-
-	std::string instruction;
-
-	if (type->GetType() == BuiltinTypeType::Float)
-	{
-		instruction = "mulss ";
-
-		CodeBytes({0xF3, 0x0F, 0x59});
-	}
-	else
-	{
-		instruction = "imul ";
-
-		CodeBytes({ 0x0F, 0xAF });
-	}
-
-	CodeBytes(ConstructModRM(out, rhs.location));
-
-	m_currentFunctionCode.m_asm += instruction + TranslateValue({out, type}) + ", " + TranslateValue(rhs) + "\n";
+	DebugAsm("mulps $,$,0",
+		TranslateValue({ out, vectorType }),
+		TranslateValue({ scalars, vectorType }));
 }
 
 void CodeGenerator::GenerateInstruction(bool commutitive, const Instruction & instruction, ValueDescription lhs,
@@ -634,7 +1160,80 @@ void CodeGenerator::GenerateInstruction(bool commutitive, const Instruction & in
 	CodeBytes(variant.bytes);
 	CodeBytes(ConstructModRM(out, rhs.location));
 
-	m_currentFunctionCode.m_asm += variant.name + TranslateValue({ out, type }) + ", " + TranslateValue(rhs) + "\n";
+	DebugAsm(variant.name + " $,$",
+		TranslateValue({ out, type }),
+		TranslateValue(rhs));
+}
+
+void CodeGenerator::GenerateVectorInstruction(bool commutitive, const Instruction & instruction, ValueDescription lhs,
+	ValueDescription rhs, SymbolLocation out)
+{
+	if (lhs.type != rhs.type)
+	{
+		throw std::runtime_error("malformed syntax tree");
+	}
+
+	BuiltinType * type = lhs.type;
+
+	const uint32_t size = type->GetSize();
+
+	assert(size % 4 == 0);
+
+	for (uint32_t i = 0; i < size; i += 4 * 4)
+	{
+		SymbolLocation source = lhs.location;
+		source.m_data = lhs.location.m_data + i;
+
+		assert(i == 0 || source.InMemory());
+
+		SymbolLocation location = source;
+
+		BuiltinType * elementType = type->GetElementType();
+
+		// XXX: get the basic vector type
+		BuiltinType * vectorType = (elementType->IsVector() ? elementType : type);
+
+		OperandAssistant assistant(this, location, vectorType);
+
+		if (location != lhs.location)
+			GenerateWrite({ location, vectorType }, { source, vectorType });
+
+		GenerateInstruction(commutitive, instruction, { location, vectorType }, rhs, location);
+
+		GenerateWrite({ out, vectorType }, { location, vectorType });
+	}
+}
+
+SymbolLocation CodeGenerator::GenerateExplodeFloat(Layout::StackLayout & stack, ValueDescription & float_)
+{
+	assert(float_.type->GetType() == BuiltinTypeType::Float);
+
+	SymbolLocation scalars = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Vec4));
+
+	if (scalars.InMemory())
+	{
+		SymbolLocation l = scalars;
+
+		for (int i = 0; i < 4; ++i)
+		{
+			GenerateWrite({ l, float_.type }, float_);
+			l.m_data += 4;
+		}
+	}
+	else
+	{
+		GenerateWrite({ scalars, float_.type }, float_);
+
+		CodeBytes({ 0x0F, 0xC6 });
+		CodeBytes(ConstructModRM(scalars, scalars));
+		CodeBytes(0x00);
+
+		DebugAsm("shufps $,$,0",
+			TranslateValue({ scalars, float_.type }),
+			TranslateValue({ scalars, float_.type }));
+	}
+
+	return scalars;
 }
 
 namespace
@@ -652,7 +1251,8 @@ std::vector<uint8_t> CodeGenerator::ConstructModRM(const SymbolLocation & target
 {
 	if (target.m_type == SymbolLocation::GlobalMemory)
 	{
-		uint8_t * disp = (uint8_t*)&target.m_data;
+		uint32_t value = target.m_data + m_globalMemory;
+		uint8_t * disp = (uint8_t*)&value;
 		return { MakeModRM(0x0, source.m_data, 0x5), disp[0], disp[1], disp[2], disp[3] };
 	}
 	else if (target.m_type == SymbolLocation::LocalMemory)
@@ -660,15 +1260,24 @@ std::vector<uint8_t> CodeGenerator::ConstructModRM(const SymbolLocation & target
 		uint8_t * disp = (uint8_t*)&target.m_data;
 		return { MakeModRM(0x2, source.m_data, 0x6), disp[0], disp[1], disp[2], disp[3] };
 	}
+	else if (target.m_type == SymbolLocation::IndirectRegister)
+	{
+		return { MakeModRM(0x0, source.m_data, target.m_data) };
+	}
 	else if (source.m_type == SymbolLocation::GlobalMemory)
 	{
-		uint8_t * disp = (uint8_t*)&source.m_data;
+		uint32_t value = source.m_data + m_globalMemory;
+		uint8_t * disp = (uint8_t*)&value;
 		return { MakeModRM(0x0, target.m_data, 0x5), disp[0], disp[1], disp[2], disp[3] };
 	}
 	else if (source.m_type == SymbolLocation::LocalMemory)
 	{
 		uint8_t * disp = (uint8_t*)&source.m_data;
 		return { MakeModRM(0x2, target.m_data, 0x6), disp[0], disp[1], disp[2], disp[3] };
+	}
+	else if (source.m_type == SymbolLocation::IndirectRegister)
+	{
+		return { MakeModRM(0x0, target.m_data, source.m_data) };
 	}
 	else
 	{
@@ -680,17 +1289,22 @@ std::vector<uint8_t> CodeGenerator::ConstructModRM(const SymbolLocation & target
 {
 	if (target.m_type == SymbolLocation::GlobalMemory)
 	{
-		uint8_t * disp = (uint8_t*)&target.m_data;
-		return{ MakeModRM(0x0, r, 0x5), disp[0], disp[1], disp[2], disp[3] };
+		uint32_t value = target.m_data + m_globalMemory;
+		uint8_t * disp = (uint8_t*)&value;
+		return { MakeModRM(0x0, r, 0x5), disp[0], disp[1], disp[2], disp[3] };
 	}
 	else if (target.m_type == SymbolLocation::LocalMemory)
 	{
 		uint8_t * disp = (uint8_t*)&target.m_data;
-		return{ MakeModRM(0x2, r, 0x6), disp[0], disp[1], disp[2], disp[3] };
+		return { MakeModRM(0x2, r, 0x6), disp[0], disp[1], disp[2], disp[3] };
+	}
+	else if (target.m_type == SymbolLocation::IndirectRegister)
+	{
+		return{ MakeModRM(0x0, r, target.m_data) };
 	}
 	else
 	{
-		return{ MakeModRM(0x3, r, target.m_data) };
+		return { MakeModRM(0x3, r, target.m_data) };
 	}
 }
 
@@ -702,9 +1316,13 @@ std::string CodeGenerator::TranslateValue(const ValueDescription & value)
 		{
 			return "[" + AsHex(value.location.m_data) + "]";
 		}
-		else
+		else if (value.location.m_type == SymbolLocation::LocalMemory)
 		{
 			return "[rsi + " + std::to_string(value.location.m_data) + "]";
+		}
+		else if (value.location.m_type == SymbolLocation::IndirectRegister)
+		{
+			return "[" + RegToStr(value.location.m_data) + "]";
 		}
 	}
 
@@ -729,4 +1347,33 @@ void CodeGenerator::CodeBytes(const std::initializer_list<uint8_t> & bytes)
 void CodeGenerator::CodeBytes(const std::vector<uint8_t> & bytes)
 {
 	m_currentFunctionCode.m_bytes.insert(m_currentFunctionCode.m_bytes.end(), bytes.begin(), bytes.end());
+}
+
+namespace
+{
+
+}
+
+template<typename T, typename... U>
+void CodeGenerator::DebugAsm(const std::string & format, T && value, U &&... args)
+{
+	std::ostringstream oss;
+
+	std::string::size_type pos = format.find('$');
+
+	if (pos != std::string::npos)
+	{
+		oss << format.substr(0, pos);
+		oss << value;
+		m_currentFunctionCode.m_asm += oss.str();
+		DebugAsm(format.substr(pos+1), std::forward<U>(args)...);
+		return;
+	}
+
+	m_currentFunctionCode.m_asm += format + "\n";
+}
+
+void CodeGenerator::DebugAsm(const std::string & format)
+{
+	m_currentFunctionCode.m_asm += format + "\n";
 }

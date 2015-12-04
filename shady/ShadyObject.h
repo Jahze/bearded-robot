@@ -1,0 +1,109 @@
+#pragma once
+
+#include <cstdint>
+#include <map>
+#include <tuple>
+#include <unordered_map>
+#include <vector>
+#include "CodeGenerator.h"
+#include "ProgramContext.h"
+#include "SymbolTable.h"
+
+class ScopedAlloc
+{
+public:
+	ScopedAlloc(uint32_t size);
+	~ScopedAlloc();
+
+	operator void*() const
+	{
+		return m_pointer;
+	}
+
+private:
+	void * m_pointer;
+};
+
+class ShadyObject
+{
+public:
+	ShadyObject(uint32_t size);
+
+	uint32_t GetStart()
+	{
+		return reinterpret_cast<uint32_t>((void*)m_object);
+	}
+
+	void Execute();
+
+	void ReserveGlobalSize(uint32_t size);
+
+	void WriteConstants(
+		const std::unordered_map<float, SymbolLocation> & floatConstants,
+		const std::map<std::tuple<float, float, float, float>, SymbolLocation> & vectorConstants);
+
+	void NoteGlobals(const SymbolTable & symbolTable);
+
+	void WriteFunctions(const std::unordered_map<std::string, FunctionCode> & functions);
+
+	template<typename T>
+	void WriteGlobal(const std::string & name, const T & t)
+	{
+		auto iter = m_globals.find(name);
+
+		if (iter == m_globals.end())
+			throw std::runtime_error("couldn't find global '" + name + "'");
+
+		char * pointer = reinterpret_cast<char*>((void*)m_object);
+		pointer += iter->second.second;
+
+		if (iter->second.first == Memory)
+		{
+			std::memcpy(pointer, &t, sizeof(T));
+		}
+		else
+		{
+			uint32_t address = reinterpret_cast<uint32_t>(&t);
+			uint8_t * value = (uint8_t*)&address;
+
+			std::memcpy(pointer, value, sizeof(address));
+		}
+	}
+
+	template<typename T>
+	void LoadGlobal(const std::string & name, T * p)
+	{
+		auto iter = m_globals.find(name);
+
+		if (iter == m_globals.end())
+			throw std::runtime_error("couldn't find global '" + name + "'");
+
+		char * pointer = reinterpret_cast<char*>((void*)m_object);
+		pointer += iter->second.second;
+
+		assert(iter->second.first == Memory);
+
+		std::memcpy(p, pointer, sizeof(T));
+	}
+
+private:
+	void * ObjectCursor() const;
+	uint32_t WriteReg(uint32_t reg);
+	uint32_t WriteXmmReg(uint32_t reg);
+	uint32_t WriteXmmVectorReg(uint32_t reg);
+	void CallTrampoline();
+
+private:
+	enum GlobalType
+	{
+		Memory,
+		Register,
+	};
+
+	std::unordered_map<std::string, void*> m_exports;
+	std::unordered_map<std::string, std::pair<GlobalType,uint32_t>> m_globals;
+	void * m_globalTrampoline = nullptr;
+	void * m_stackPointerSet = nullptr;
+	ScopedAlloc m_object;
+	uint32_t m_cursor = 0;
+};

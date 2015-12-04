@@ -1,6 +1,7 @@
 #include <array>
 #include <chrono>
 #include <ctime>
+#include <memory>
 #include <string>
 #include <Windows.h>
 
@@ -13,6 +14,7 @@
 #include "Projection.h"
 #include "Rasteriser.h"
 #include "ScopedHDC.h"
+#include "ShaderCompiler.h"
 #include "Vector.h"
 #include "VertexShader.h"
 
@@ -20,6 +22,29 @@ DoubleBuffer *pFrames = 0;
 
 namespace
 {
+	std::unique_ptr<ShadyObject> CreateVertexShader()
+	{
+		std::string source =
+			"export void main()\n"
+			"{\n"
+			"	g_projected_position = g_projection * g_view * g_model * g_position;\n"
+			"	g_projected_position[0] /= g_projected_position[3];\n"
+			"	g_projected_position[1] /= g_projected_position[3];\n"
+			"	g_projected_position[2] /= g_projected_position[3];\n"
+			"	g_world_position = g_model * g_position;\n"
+			"	return;\n"
+			"}\n";
+
+		std::string error;
+		ShaderCompiler compiler;
+
+		std::unique_ptr<ShadyObject> object = compiler.Compile(source, error);
+
+		assert(error.empty());
+
+		return object;
+	}
+
 	Real g_rotation = 0.0;
 
 	std::chrono::steady_clock::time_point g_lastTime = std::chrono::steady_clock::now();
@@ -29,6 +54,8 @@ namespace
 	Camera g_camera;
 
 	InputHandler g_inputHandler;
+
+	std::unique_ptr<ShadyObject> g_vertexShader;
 }
 
 void FrameCount(HWND hwnd)
@@ -107,7 +134,7 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//Vector3 direction{ Real(sin(g_rotation * DEG_TO_RAD)), 0.0, Real(cos(g_rotation * DEG_TO_RAD)) };
 			//g_camera.SetPosition(rotationCentre + direction * 50.0);
 
-			VertexShader vertexShader(projection);
+			VertexShader vertexShader(projection, g_vertexShader.get());
 			vertexShader.SetModelTransform(modelTransform);
 			vertexShader.SetViewTransform(g_camera.GetTransform());
 
@@ -253,6 +280,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, i
 	::GetWindowRect(hwnd, &rect);
 	g_inputHandler.SetWindowArea(rect);
 	g_inputHandler.AddMouseListener(&g_camera);
+
+	g_vertexShader = CreateVertexShader();
 
 	BOOL bRet;
 	MSG msg;

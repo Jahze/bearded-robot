@@ -11,9 +11,9 @@ BuiltinType * BuiltinType::Get(BuiltinTypeType type)
 		{ "float", 4, BuiltinTypeType::Float },
 		{ "int", 4, BuiltinTypeType::Int },
 		{ "bool", 4, BuiltinTypeType::Bool },
-		{ "vec3", BuiltinTypeType::Float, 12, BuiltinTypeType::Vec3 },
+		//{ "vec3", BuiltinTypeType::Float, 12, BuiltinTypeType::Vec3 },
 		{ "vec4", BuiltinTypeType::Float, 16, BuiltinTypeType::Vec4 },
-		{ "mat3x3", BuiltinTypeType::Vec3, 36, BuiltinTypeType::Mat3x3 },
+		//{ "mat3x3", BuiltinTypeType::Vec3, 36, BuiltinTypeType::Mat3x3 },
 		{ "mat4x4", BuiltinTypeType::Vec4, 64, BuiltinTypeType::Mat4x4 },
 	};
 

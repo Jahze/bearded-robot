@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+#include <map>
 #include <unordered_map>
 #include "Layout.h"
 #include "SymbolTable.h"
@@ -7,6 +9,7 @@
 class BuiltinType;
 class FunctionTable;
 class ProgramContext;
+class ShadyObject;
 class SymbolTable;
 struct SyntaxNode;
 
@@ -14,6 +17,7 @@ struct FunctionCode
 {
 	std::vector<uint8_t> m_bytes;
 	std::string m_asm;
+	bool m_isExport = false;
 
 	void Reset()
 	{
@@ -32,13 +36,15 @@ public:
 		, m_vector({vectorName, {vectorBytes}})
 	{ }
 
-private:
 	struct Variant
 	{
 		std::string name;
 		std::vector<uint8_t> bytes;
 	};
 
+	const Variant & GetVariant(BuiltinType * type) const;
+
+private:
 	Variant m_integer;
 	Variant m_float;
 	Variant m_vector;
@@ -53,7 +59,7 @@ public:
 		SymbolTable & symbolTable,
 		FunctionTable & functionTable);
 
-	void Generate(SyntaxNode * root);
+	void Generate(ShadyObject * object, SyntaxNode * root);
 
 private:
 	struct ValueDescription
@@ -70,7 +76,14 @@ private:
 	ValueDescription ProcessAssign(Layout::StackLayout & stack, SyntaxNode * assignment);
 	ValueDescription ProcessName(Layout::StackLayout & stack, SyntaxNode * name);
 
-	ValueDescription ProcessMultiply(Layout::StackLayout & stack, SyntaxNode * multiply);
+	ValueDescription ProcessMultiply(Layout::StackLayout & stack, SyntaxNode * multiply, bool isAssign);
+	ValueDescription ProcessDivide(Layout::StackLayout & stack, SyntaxNode * divide, bool isAssign);
+	ValueDescription ProcessAdd(Layout::StackLayout & stack, SyntaxNode * add, bool isAssign);
+	ValueDescription ProcessSubtract(Layout::StackLayout & stack, SyntaxNode * subtract, bool isAssign);
+
+	ValueDescription ProcessSubscript(Layout::StackLayout & stack, SyntaxNode * subscript);
+
+	ValueDescription ResolveRegisterPart(Layout::StackLayout & stack, ValueDescription value);
 
 	void GenerateWrite(const ValueDescription & target, uint32_t literal);
 	void GenerateWrite(const ValueDescription & target, const ValueDescription & source);
@@ -78,7 +91,22 @@ private:
 	void GenerateMultiplyMatrixMatrix(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);
 	void GenerateMultiplyMatrixVector(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);
 	void GenerateMultiplyVectorScalar(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);
-	void GenerateMultiplyScalarScalar(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);
+
+	void GenerateInstruction(
+		bool commutitive,
+		const Instruction & instruction,
+		ValueDescription lhs,
+		ValueDescription rhs,
+		SymbolLocation out);
+
+	void GenerateVectorInstruction(
+		bool commutitive,
+		const Instruction & instruction,
+		ValueDescription lhs,
+		ValueDescription rhs,
+		SymbolLocation out);
+
+	SymbolLocation GenerateExplodeFloat(Layout::StackLayout & stack, ValueDescription & float_);
 
 	std::vector<uint8_t> ConstructModRM(const SymbolLocation & target, const SymbolLocation & source);
 	std::vector<uint8_t> ConstructModRM(const SymbolLocation & target, uint8_t r);
@@ -88,6 +116,10 @@ private:
 	void CodeBytes(uint8_t byte);
 	void CodeBytes(const std::initializer_list<uint8_t> & bytes);
 	void CodeBytes(const std::vector<uint8_t> & bytes);
+
+	template<typename T, typename... U>
+	void DebugAsm(const std::string & format, T && value, U &&... args);
+	void DebugAsm(const std::string & format);
 
 	friend class OperandAssistant;
 
@@ -102,5 +134,8 @@ private:
 	FunctionCode m_currentFunctionCode;
 	Function * m_currentFunction = nullptr;
 
-	std::unordered_map<float, SymbolLocation> m_constants;
+	std::unordered_map<float, SymbolLocation> m_constantFloats;
+
+	// XXX : not std::hash for tuple so can't use unordered_map :(
+	std::map<std::tuple<float,float,float,float>, SymbolLocation> m_constantVectors;
 };
