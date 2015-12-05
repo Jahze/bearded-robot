@@ -32,6 +32,7 @@ namespace
 			"	g_projected_position[1] /= g_projected_position[3];\n"
 			"	g_projected_position[2] /= g_projected_position[3];\n"
 			"	g_world_position = g_model * g_position;\n"
+			"	g_world_normal = normalize(g_model * g_normal);\n"
 			"	return;\n"
 			"}\n";
 
@@ -255,6 +256,8 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, int nCmdShow)
 {
+	g_vertexShader = CreateVertexShader();
+
 	HBRUSH hPen = (HBRUSH)CreatePen(PS_INSIDEFRAME, 0, RGB(0,0,0));
 
 	WNDCLASS wc;
@@ -280,8 +283,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, i
 	::GetWindowRect(hwnd, &rect);
 	g_inputHandler.SetWindowArea(rect);
 	g_inputHandler.AddMouseListener(&g_camera);
-
-	g_vertexShader = CreateVertexShader();
 
 	BOOL bRet;
 	MSG msg;

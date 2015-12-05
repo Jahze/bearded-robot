@@ -32,12 +32,11 @@ public:
 		return sqrt(x * x + y * y + z * z);
 	}
 
-	Vector3 & Normalize()
+	void Normalize()
 	{
 		x /= Length();
 		y /= Length();
 		z /= Length();
-		return *this;
 	}
 
 	Real Dot(const Vector3 & rhs) const

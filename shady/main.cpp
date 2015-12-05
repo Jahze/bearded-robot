@@ -44,7 +44,7 @@ int main()
 		"	g_projected_position[0] /= g_projected_position[3];\n"
 		"	g_projected_position[1] /= g_projected_position[3];\n"
 		"	g_projected_position[2] /= g_projected_position[3];\n"
-		"	g_world_position = g_model * g_position;\n"
+		"	g_world_position = normalize(g_model * g_normal);\n"
 		"	return;\n"
 		"}\n";
 

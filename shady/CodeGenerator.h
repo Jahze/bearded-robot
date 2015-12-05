@@ -71,6 +71,7 @@ private:
 	void InitialLayout();
 
 	void ProcessFunction(SyntaxNode * function);
+
 	ValueDescription ProcessExpression(Layout::StackLayout & stack, SyntaxNode * expression);
 	ValueDescription ProcessLiteral(Layout::StackLayout & stack, SyntaxNode * literal);
 	ValueDescription ProcessAssign(Layout::StackLayout & stack, SyntaxNode * assignment);
@@ -82,11 +83,14 @@ private:
 	ValueDescription ProcessSubtract(Layout::StackLayout & stack, SyntaxNode * subtract, bool isAssign);
 
 	ValueDescription ProcessSubscript(Layout::StackLayout & stack, SyntaxNode * subscript);
+	ValueDescription ProcessFunctionCall(Layout::StackLayout & stack, SyntaxNode * function);
 
 	ValueDescription ResolveRegisterPart(Layout::StackLayout & stack, ValueDescription value);
 
 	void GenerateWrite(const ValueDescription & target, uint32_t literal);
 	void GenerateWrite(const ValueDescription & target, const ValueDescription & source);
+
+	void GenerateNormalize(ValueDescription value, SymbolLocation out);
 
 	void GenerateMultiplyMatrixMatrix(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);
 	void GenerateMultiplyMatrixVector(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);

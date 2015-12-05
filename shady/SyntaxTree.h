@@ -48,6 +48,7 @@ enum class SyntaxNodeType
 	Else,
 	While,
 	For,
+	FunctionCall,
 };
 
 namespace SyntaxNodeFlags
@@ -136,6 +137,7 @@ private:
 	std::unique_ptr<SyntaxNode> AdditiveExpression();
 	std::unique_ptr<SyntaxNode> MultipicativeExpression();
 	std::unique_ptr<SyntaxNode> UnaryOperatorExpression();
+	std::unique_ptr<SyntaxNode> PostfixExpression();
 	std::unique_ptr<SyntaxNode> ExpressionAtom();
 	void IfStatement(SyntaxNode *parent);
 	void Condition(SyntaxNode *parent);

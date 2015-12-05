@@ -148,6 +148,29 @@ namespace
 
 		return true;
 	}
+
+	void CheckFunctionArgumentList(tokeniser::Token token, Function * function,
+		std::vector<std::pair<std::unique_ptr<SyntaxNode>, BuiltinType*>> & arguments)
+	{
+		const std::vector<Symbol*> & parameters = function->GetParameters();
+
+		if (parameters.size() > arguments.size())
+			throw SyntaxException(token, "Too few arguments in function call");
+
+		if (parameters.size() < arguments.size())
+			throw SyntaxException(token, "Too many arguments in function call");
+
+		std::size_t i = 0;
+
+		for (auto && argument : arguments)
+		{
+			BuiltinType * type = parameters[i++]->GetType();
+
+			if (! CheckAssignmentExpressionCompatibility(argument.second, type))
+				throw SyntaxException(token, "Cannot convert argument " + std::to_string(i) + " from '" +
+					argument.second->GetName() + "' to '" + type->GetName() + "'");
+		}
+	}
 }
 
 class TokenIterator
@@ -202,7 +225,7 @@ private:
 
 SyntaxTree::SyntaxTree(const ProgramContext & context)
 {
-	context.ApplyToSymbolTable(m_symbolTable);
+	context.ApplyToSymbolTable(m_symbolTable, m_functionTable);
 }
 
 bool SyntaxTree::Parse(const std::vector<tokeniser::Token> & tokens, std::string & error, tokeniser::Token & errorToken)
@@ -366,21 +389,14 @@ void SyntaxTree::FunctionArguments(SyntaxNode *function)
 	{
 		while (true)
 		{
-			tokeniser::Token typeToken = m_iterator->Next();
+			tokeniser::Token typeToken;
+			tokeniser::Token nameToken;
 
-			if (! IsType(typeToken.m_type))
-				throw SyntaxException(typeToken, "Expecting type name");
-
-			tokeniser::Token nameToken = m_iterator->Next();
-
-			if (! Is(nameToken.m_type, TokenType::Identifier))
-				throw SyntaxException(nameToken, "Expecting identifier");
-
-			TypeAndIdentifier(parameters, SyntaxNodeType::FunctionParameter);
+			TypeAndIdentifier(parameters, SyntaxNodeType::FunctionParameter, typeToken, nameToken);
 
 			Symbol * symbol = AddSymbol(typeToken, nameToken, ScopeType::Local, SymbolType::Variable);
 
-			m_currentFunction->AddLocal(symbol);
+			m_currentFunction->AddParameter(symbol);
 
 			tokeniser::Token next = m_iterator->Next();
 
@@ -519,7 +535,7 @@ void SyntaxTree::LocalVariable(SyntaxNode *parent)
 		{
 			if (! CheckAssignmentExpressionCompatibility(lhsType, m_currentExpressionType))
 				throw SyntaxException(next, "Cannot initialise '" + lhsType->GetName() + "' with '" +
-					m_currentExpressionType->GetName());
+					m_currentExpressionType->GetName() + "'");
 		}
 	}
 
@@ -571,7 +587,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::AssignmentExpression()
 
 		m_currentExpressionType = rhsType;
 
-		return std::move(operation);
+		return operation;
 	};
 
 	switch (static_cast<TokenType>(m_iterator->Peek()))
@@ -592,7 +608,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::AssignmentExpression()
 		return ParseRhs(SyntaxNodeType::DivideAssign, CheckExpressionsAreScalar, false);
 	}
 
-	return std::move(node);
+	return node;
 }
 
 std::unique_ptr<SyntaxNode> SyntaxTree::RelationalExpression()
@@ -615,7 +631,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::RelationalExpression()
 
 		m_currentExpressionType = BuiltinType::Get(BuiltinTypeType::Bool);
 
-		return std::move(operation);
+		return operation;
 	};
 
 	switch (static_cast<TokenType>(m_iterator->Peek()))
@@ -639,7 +655,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::RelationalExpression()
 		return ParseRhs(SyntaxNodeType::GreaterEquals, CheckExpressionsAreScalar);
 	}
 
-	return std::move(node);
+	return node;
 }
 
 std::unique_ptr<SyntaxNode> SyntaxTree::AdditiveExpression()
@@ -662,7 +678,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::AdditiveExpression()
 
 		m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
 
-		return std::move(operation);
+		return operation;
 	}
 	else if (Is(m_iterator->Peek(), TokenType::Subtract))
 	{
@@ -678,10 +694,10 @@ std::unique_ptr<SyntaxNode> SyntaxTree::AdditiveExpression()
 
 		m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
 
-		return std::move(operation);
+		return operation;
 	}
 
-	return std::move(node);
+	return node;
 }
 
 std::unique_ptr<SyntaxNode> SyntaxTree::MultipicativeExpression()
@@ -726,7 +742,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::MultipicativeExpression()
 		}
 	}
 
-	return std::move(node);
+	return node;
 }
 
 std::unique_ptr<SyntaxNode> SyntaxTree::UnaryOperatorExpression()
@@ -736,27 +752,123 @@ std::unique_ptr<SyntaxNode> SyntaxTree::UnaryOperatorExpression()
 		tokeniser::Token next = m_iterator->Next();
 
 		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Negate));
-		operation->AddChild(ExpressionAtom());
+		operation->AddChild(PostfixExpression());
 
 		if (! m_currentExpressionType->IsScalar() && ! m_currentExpressionType->IsVector())
 			throw SyntaxException(next, "Unary '-' applied to invalid expression");
 
-		return std::move(operation);
+		return operation;
 	}
 	else if (Is(m_iterator->Peek(), TokenType::LogicalNot))
 	{
 		tokeniser::Token next = m_iterator->Next();
 
 		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::LogicalNegate));
-		operation->AddChild(ExpressionAtom());
+		operation->AddChild(PostfixExpression());
 
 		if (m_currentExpressionType->GetType() != BuiltinTypeType::Bool)
 			throw SyntaxException(next, "Unary '!' applied to non-boolean expression");
 
-		return std::move(operation);
+		return operation;
 	}
 
-	return ExpressionAtom();
+	return PostfixExpression();
+}
+
+std::unique_ptr<SyntaxNode> SyntaxTree::PostfixExpression()
+{
+	std::unique_ptr<SyntaxNode> atom = ExpressionAtom();
+
+	while (true)
+	{
+		int peeked = m_iterator->Peek();
+
+		if (Is(peeked, TokenType::SquareBracketLeft))
+		{
+			tokeniser::Token token = m_iterator->Next();
+
+			if (! m_currentExpressionType->IsVector())
+				throw SyntaxException(token, "Type '" + m_currentExpressionType->GetName() + "' cannot be subscripted");
+
+			BuiltinType * vectorType = m_currentExpressionType;
+
+			std::unique_ptr<SyntaxNode> subscript = std::make_unique<SyntaxNode>(nullptr, SyntaxNodeType::Subscript);
+			subscript->AddChild(std::move(atom));
+			subscript->AddChild(AssignmentExpression());
+
+			if (m_currentExpressionType->GetType() != BuiltinTypeType::Int)
+				throw SyntaxException(token, "Subscript is not integral");
+
+			token = m_iterator->Next();
+
+			if (! Is(token.m_type, TokenType::SquareBracketRight))
+				throw SyntaxException(token, "Expecting subscript end ']'");
+
+			m_currentExpressionType = vectorType->GetElementType();
+			atom = std::move(subscript);
+		}
+		else if (Is(peeked, TokenType::RoundBracketLeft))
+		{
+			tokeniser::Token start = m_iterator->Next();
+
+			if (m_currentExpressionType->GetType() != BuiltinTypeType::Function)
+				throw SyntaxException(start, "Cannot call expression of type '" +
+					m_currentExpressionType->GetName() + "'");
+
+			std::vector<std::pair<std::unique_ptr<SyntaxNode>, BuiltinType*>> arguments;
+
+			Function * function = m_functionTable.FindFunction(atom->m_data);
+
+			std::unique_ptr<SyntaxNode> call = std::make_unique<SyntaxNode>(nullptr, SyntaxNodeType::FunctionCall);
+			call->AddChild(std::move(atom));
+
+			m_currentExpressionType = function->GetReturnType();
+
+			if (Is(m_iterator->Peek(), TokenType::RoundBracketRight))
+			{
+				m_iterator->Next();
+				CheckFunctionArgumentList(start, function, arguments);
+				atom = std::move(call);
+				continue;
+			}
+
+			while (true)
+			{
+				std::unique_ptr<SyntaxNode> argument = AssignmentExpression();
+
+				arguments.push_back(std::make_pair(std::move(argument), m_currentExpressionType));
+
+				tokeniser::Token token = m_iterator->Next();
+
+				if (Is(token.m_type, TokenType::RoundBracketRight))
+				{
+					//token = m_iterator->Next();
+					break;
+				}
+
+				if (Is(token.m_type, TokenType::Comma))
+				{
+					//token = m_iterator->Next();
+					continue;
+				}
+
+				throw SyntaxException(start, "Unfinished function call parameter list");
+			}
+
+			CheckFunctionArgumentList(start, function, arguments);
+
+			for (auto && argument : arguments)
+				call->AddChild(std::move(argument.first));
+
+			atom = std::move(call);
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	return atom;
 }
 
 std::unique_ptr<SyntaxNode> SyntaxTree::ExpressionAtom()
@@ -777,32 +889,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::ExpressionAtom()
 
 		m_currentExpressionType = symbol->GetType();
 
-		while (Is(m_iterator->Peek(), TokenType::SquareBracketLeft))
-		{
-			token = m_iterator->Next();
-
-			if (! m_currentExpressionType->IsVector())
-				throw SyntaxException(token, "Type '" + m_currentExpressionType->GetName() + "' cannot be subscripted");
-
-			BuiltinType * vectorType = m_currentExpressionType;
-
-			std::unique_ptr<SyntaxNode> subscript = std::make_unique<SyntaxNode>(nullptr, SyntaxNodeType::Subscript);
-			subscript->AddChild(std::move(name));
-			subscript->AddChild(ExpressionAtom());
-
-			if (m_currentExpressionType->GetType() != BuiltinTypeType::Int)
-				throw SyntaxException(token, "Subscript is not integral");
-
-			token = m_iterator->Next();
-
-			if (! Is(token.m_type, TokenType::SquareBracketRight))
-				throw SyntaxException(token, "Expecting subscript end '['");
-
-			m_currentExpressionType = vectorType->GetElementType();
-			name = std::move(subscript);
-		}
-
-		return std::move(name);
+		return name;
 	}
 	else if (IsLiteral(token.m_type))
 	{
@@ -829,7 +916,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::ExpressionAtom()
 
 		m_currentExpressionType = BuiltinType::Get(BuiltinType::FromName(literalType->m_data));
 
-		return std::move(literal);
+		return literal;
 	}
 
 	throw SyntaxException(token, "Expected expression");

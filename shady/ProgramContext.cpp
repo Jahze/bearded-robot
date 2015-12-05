@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cassert>
 #include "BuiltinTypes.h"
+#include "FunctionTable.h"
 #include "ProgramContext.h"
 #include "SymbolTable.h"
 
@@ -21,13 +22,16 @@ const ProgramContext & ProgramContext::VertexShaderContext()
 			{ "g_projected_position", BuiltinTypeType::Vec4, ContextVariable::Output },
 			{ "g_world_position", BuiltinTypeType::Vec4, ContextVariable::Output },
 			{ "g_world_normal", BuiltinTypeType::Vec4, ContextVariable::Output },
+		},
+		{
+			{ "normalize", BuiltinTypeType::Vec4, { BuiltinTypeType::Vec4 } },
 		}
 	};
 
 	return context;
 }
 
-void ProgramContext::ApplyToSymbolTable(SymbolTable & symbolTable) const
+void ProgramContext::ApplyToSymbolTable(SymbolTable & symbolTable, FunctionTable & functionTable) const
 {
 	for (auto && variable : m_variables)
 	{
@@ -38,6 +42,31 @@ void ProgramContext::ApplyToSymbolTable(SymbolTable & symbolTable) const
 		Symbol *symbol = symbolTable.AddIntrinsicSymbol(variable.m_name, ScopeType::Global, SymbolType::Variable, type);
 
 		assert(symbol);
+	}
+
+	BuiltinType * type = BuiltinType::Get(BuiltinTypeType::Function);
+
+	for (auto && function : m_functions)
+	{
+		Symbol * symbol = symbolTable.AddIntrinsicSymbol(function.m_name, ScopeType::Global, SymbolType::Function, type);
+
+		assert(symbol);
+
+		Function * f = functionTable.AddFunction(symbol);
+
+		assert(f);
+
+		f->SetReturnType(function.m_returnType);
+
+		uint32_t i = 0;
+
+		for (auto && argument : function.m_arguments)
+		{
+			symbol = symbolTable.AddSymbol("arg" + std::to_string(i++), ScopeType::Local, SymbolType::Variable,
+				BuiltinType::Get(argument), f);
+
+			f->AddParameter(symbol);
+		}
 	}
 }
 

@@ -379,6 +379,9 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessExpression(Layout::StackLa
 	case SyntaxNodeType::Subscript:
 		return ProcessSubscript(stack, expression);
 
+	case SyntaxNodeType::FunctionCall:
+		return ProcessFunctionCall(stack, expression);
+
 	case SyntaxNodeType::Negate:
 	case SyntaxNodeType::LogicalNegate:
 	case SyntaxNodeType::Equals:
@@ -756,6 +759,36 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessSubscript(Layout::StackLay
 	throw std::runtime_error("malformed syntax tree");
 }
 
+CodeGenerator::ValueDescription CodeGenerator::ProcessFunctionCall(Layout::StackLayout & stack, SyntaxNode * function)
+{
+	assert(function->m_nodes.size());
+
+	SyntaxNode * name = function->m_nodes[0].get();
+
+	assert(name->m_type == SyntaxNodeType::Name);
+
+	if (name->m_data == "normalize")
+	{
+		assert(function->m_nodes.size() == 2);
+
+		ValueDescription lhs;
+
+		{
+			Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+			lhs = ProcessExpression(subStack, function->m_nodes[1].get());
+		}
+
+		SymbolLocation out = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Vec4));
+
+		GenerateNormalize(lhs, out);
+
+		return { out, BuiltinType::Get(BuiltinTypeType::Vec4) };
+	}
+
+	throw std::runtime_error("function call not implemented");
+}
+
 CodeGenerator::ValueDescription CodeGenerator::ResolveRegisterPart(Layout::StackLayout & stack, ValueDescription value)
 {
 	if (value.location.m_type == SymbolLocation::RegisterPart)
@@ -885,7 +918,7 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 
 		if (type->IsVector())
 		{
-			instruction = "vmovaps ";
+			instruction = "vmovaps";
 
 			if (out.InMemory())
 				CodeBytes({ 0x0f, 0x29 });
@@ -894,7 +927,7 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 		}
 		else if (type->GetType() == BuiltinTypeType::Float)
 		{
-			instruction = "movss ";
+			instruction = "movss";
 
 			if (out.InMemory())
 				CodeBytes({ 0xf3, 0x0f, 0x11 });
@@ -903,7 +936,7 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 		}
 		else
 		{
-			instruction = "mov ";
+			instruction = "mov";
 
 			if (out.InMemory())
 				CodeBytes({ 0x89 });
@@ -937,6 +970,64 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 				TranslateValue(target),
 				TranslateValue({ out, type }));
 		}
+	}
+}
+
+void CodeGenerator::GenerateNormalize(ValueDescription value, SymbolLocation out)
+{
+	// http://fastcpp.blogspot.co.uk/2012/02/calculating-length-of-3d-vector-using.html
+	// XXX : this is a "fast" normalize that gets the magnitude close to 1 but not exactly
+	// does that matter?
+
+	assert(value.type->GetType() == BuiltinTypeType::Vec4);
+
+	OperandAssistant assitant(this, out, value.type);
+
+	bool writeToOut = true;
+
+	std::unique_ptr<Layout::TemporaryRegister> reg;
+
+	if (out == value.location)
+	{
+		reg = m_layout.GetFreeXmmRegister();
+		out = reg->Location();
+		writeToOut = false;
+	}
+
+	GenerateWrite({ out, value.type }, value);
+
+	CodeBytes({ 0x66, 0x0F, 0x3A, 0x40 });
+	CodeBytes(ConstructModRM(out, out));
+	CodeBytes(0x77);
+
+	DebugAsm("dpps $,$,0x77",
+		TranslateValue({ out, value.type }),
+		TranslateValue({ out, value.type }));
+
+	CodeBytes({ 0x0F, 0x52 });
+	CodeBytes(ConstructModRM(out, out));
+
+	DebugAsm("rsqrtps $,$",
+		TranslateValue({ out, value.type }),
+		TranslateValue({ out, value.type }));
+
+	CodeBytes({ 0x0F, 0x59 });
+
+	if (writeToOut)
+	{
+		CodeBytes(ConstructModRM(out, value.location));
+
+		DebugAsm("mulps $,$",
+			TranslateValue({ out, value.type }),
+			TranslateValue(value));
+	}
+	else
+	{
+		CodeBytes(ConstructModRM(value.location, out));
+
+		DebugAsm("mulps $,$",
+			TranslateValue(value),
+			TranslateValue({ out, value.type }));
 	}
 }
 
@@ -1347,11 +1438,6 @@ void CodeGenerator::CodeBytes(const std::initializer_list<uint8_t> & bytes)
 void CodeGenerator::CodeBytes(const std::vector<uint8_t> & bytes)
 {
 	m_currentFunctionCode.m_bytes.insert(m_currentFunctionCode.m_bytes.end(), bytes.begin(), bytes.end());
-}
-
-namespace
-{
-
 }
 
 template<typename T, typename... U>
