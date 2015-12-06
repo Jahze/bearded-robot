@@ -39,7 +39,52 @@ namespace
 		std::string error;
 		ShaderCompiler compiler;
 
-		std::unique_ptr<ShadyObject> object = compiler.Compile(source, error);
+		std::unique_ptr<ShadyObject> object = compiler.CompileVertexShader(source, error);
+
+		assert(error.empty());
+
+		return object;
+	}
+
+	std::unique_ptr<ShadyObject> CreateFragmentShader()
+	{
+		std::string source =
+			"export void main()\n"
+			"{\n"
+			"	vec4 directionToLight = g_light0_position - g_world_position;\n"
+			"	float lightDistance = length(directionToLight);\n"
+			"\n"
+			"	directionToLight = normalize(directionToLight);\n"
+			"\n"
+			"	vec4 ambient;\n"
+			"	ambient[0] = 0.2;\n"
+			"	ambient[1] = 0.2;\n"
+			"	ambient[2] = 0.2;\n"
+			"\n"
+			"	vec4 diffuse;\n"
+			"	diffuse[0] = 1.0;\n"
+			"	diffuse[1] = 1.0;\n"
+			"	diffuse[2] = 1.0;\n"
+			"\n"
+			"	float dp = dot(g_world_normal, directionToLight);\n"
+			"	float clamped = clamp(dp, 0.0, dp);\n"
+			"\n"
+			"	float k = 0.1;\n"
+			"	float attenuation = 1.0 / (lightDistance * k);\n"
+			"\n"
+			"	vec4 colour = ambient + (diffuse * clamped * attenuation);\n"
+			"\n"
+			"	g_colour[0] = clamp(colour[0], 0.0, 1.0);\n"
+			"	g_colour[1] = clamp(colour[1], 0.0, 1.0);\n"
+			"	g_colour[2] = clamp(colour[2], 0.0, 1.0);\n"
+			"\n"
+			"	return;\n"
+			"}\n";
+
+		std::string error;
+		ShaderCompiler compiler;
+
+		std::unique_ptr<ShadyObject> object = compiler.CompileFragmentShader(source, error);
 
 		assert(error.empty());
 
@@ -58,6 +103,10 @@ namespace
 
 	std::unique_ptr<ShadyObject> g_vertexShader;
 }
+
+// TODO : pass this through correctly
+
+std::unique_ptr<ShadyObject> g_fragmentShader;
 
 void FrameCount(HWND hwnd)
 {
@@ -257,6 +306,7 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, int nCmdShow)
 {
 	g_vertexShader = CreateVertexShader();
+	g_fragmentShader = CreateFragmentShader();
 
 	HBRUSH hPen = (HBRUSH)CreatePen(PS_INSIDEFRAME, 0, RGB(0,0,0));
 

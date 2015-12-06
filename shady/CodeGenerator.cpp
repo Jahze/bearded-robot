@@ -15,6 +15,31 @@
 
 namespace
 {
+	class JumpPatcher
+	{
+	public:
+		JumpPatcher(FunctionCode * code, int32_t offset)
+			: m_code(code)
+			, m_start(code->m_bytes.size())
+			, m_offset(offset)
+		{ }
+
+		void PatchToHere()
+		{
+			uint32_t cursor = m_start + m_offset;
+
+			assert(cursor < m_code->m_bytes.size());
+			assert(m_start < m_code->m_bytes.size());
+
+			m_code->m_bytes[cursor] = m_code->m_bytes.size() - m_start;
+		}
+
+	private:
+		FunctionCode * m_code;
+		uint32_t m_start;
+		int32_t m_offset;
+	};
+
 	// TODO remove
 	std::string RegToStr(uint32_t r)
 	{
@@ -113,8 +138,8 @@ namespace instruction
 	Instruction Subtract
 	{
 		"sub",		{ 0x2B },
-		"addss",	{ 0xF3, 0x0F, 0x5C },
-		"addps",	{ 0x0F, 0x5C }
+		"subss",	{ 0xF3, 0x0F, 0x5C },
+		"subps",	{ 0x0F, 0x5C }
 	};
 }
 
@@ -669,7 +694,23 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessSubscript(Layout::StackLay
 
 			assert(lhs.location.InMemory());
 
-			GenerateWrite(addressValue, lhs.location.m_data + m_globalMemory);
+			if (lhs.location.m_type == SymbolLocation::GlobalMemory)
+			{
+				GenerateWrite(addressValue, lhs.location.m_data + m_globalMemory);
+			}
+			else if (lhs.location.m_type == SymbolLocation::LocalMemory)
+			{
+				SymbolLocation sp;
+				sp.m_type = SymbolLocation::Register;
+				sp.m_data = Register::Esi;
+				GenerateWrite(addressValue, lhs.location.m_data);
+				GenerateInstruction(false, instruction::Add, addressValue, { sp, addressValue.type }, addressLocation);
+			}
+			else
+			{
+				throw std::runtime_error("unimplemented");
+			}
+
 			GenerateInstruction(true, instruction::Add, indexValue, addressValue, indexLocation);
 
 			indexLocation.MakeIndirect();
@@ -709,7 +750,23 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessSubscript(Layout::StackLay
 			SymbolLocation addressLocation = subStack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Int));
 			ValueDescription addressValue = { addressLocation, BuiltinType::Get(BuiltinTypeType::Int) };
 
-			GenerateWrite(addressValue, lhs.location.m_data + m_globalMemory);
+			if (lhs.location.m_type == SymbolLocation::GlobalMemory)
+			{
+				GenerateWrite(addressValue, lhs.location.m_data + m_globalMemory);
+			}
+			else if (lhs.location.m_type == SymbolLocation::LocalMemory)
+			{
+				SymbolLocation sp;
+				sp.m_type = SymbolLocation::Register;
+				sp.m_data = Register::Esi;
+				GenerateWrite(addressValue, lhs.location.m_data);
+				GenerateInstruction(false, instruction::Add, addressValue, { sp, addressValue.type }, addressLocation);
+			}
+			else
+			{
+				throw std::runtime_error("unimplemented");
+			}
+
 			GenerateInstruction(true, instruction::Add, indexValue, addressValue, indexLocation);
 
 			indexLocation.MakeIndirect();
@@ -767,7 +824,7 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessFunctionCall(Layout::Stack
 
 	assert(name->m_type == SyntaxNodeType::Name);
 
-	if (name->m_data == "normalize")
+	if (name->m_data == "normalize" || name->m_data == "length")
 	{
 		assert(function->m_nodes.size() == 2);
 
@@ -779,11 +836,58 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessFunctionCall(Layout::Stack
 			lhs = ProcessExpression(subStack, function->m_nodes[1].get());
 		}
 
-		SymbolLocation out = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Vec4));
+		BuiltinType * returnType = m_functionTable.FindFunction(name->m_data)->GetReturnType();
 
-		GenerateNormalize(lhs, out);
+		SymbolLocation out = stack.PlaceTemporary(returnType);
 
-		return { out, BuiltinType::Get(BuiltinTypeType::Vec4) };
+		if (name->m_data == "normalize")
+			GenerateNormalize(lhs, out);
+		else
+			GenerateLength(lhs, out);
+
+		return { out, returnType };
+	}
+	else if (name->m_data == "dot")
+	{
+		assert(function->m_nodes.size() == 3);
+
+		ValueDescription lhs;
+		ValueDescription rhs;
+
+		{
+			Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+			lhs = ProcessExpression(subStack, function->m_nodes[1].get());
+			rhs = ProcessExpression(subStack, function->m_nodes[2].get());
+		}
+
+		SymbolLocation out = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Float));
+
+		GenerateDot(lhs, rhs, out);
+
+		return { out, BuiltinType::Get(BuiltinTypeType::Float) };
+	}
+	else if (name->m_data == "clamp")
+	{
+		assert(function->m_nodes.size() == 4);
+
+		ValueDescription value;
+		ValueDescription min;
+		ValueDescription max;
+
+		{
+			Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+			value = ProcessExpression(subStack, function->m_nodes[1].get());
+			min = ProcessExpression(subStack, function->m_nodes[2].get());
+			max = ProcessExpression(subStack, function->m_nodes[3].get());
+		}
+
+		SymbolLocation out = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Float));
+
+		GenerateClamp(value, min, max, out);
+
+		return { out, BuiltinType::Get(BuiltinTypeType::Float) };
 	}
 
 	throw std::runtime_error("function call not implemented");
@@ -832,6 +936,9 @@ CodeGenerator::ValueDescription CodeGenerator::ResolveRegisterPart(Layout::Stack
 		{
 			constantLocation = iter->second;
 		}
+
+		// TODO : move this to the part where it gets written
+		// this would allow any operation to leave crap in the upper bits
 
 		CodeBytes({ 0x0F, 0x54 });
 		CodeBytes(ConstructModRM(out, constantLocation));
@@ -918,7 +1025,7 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 
 		if (type->IsVector())
 		{
-			instruction = "vmovaps";
+			instruction = "movaps";
 
 			if (out.InMemory())
 				CodeBytes({ 0x0f, 0x29 });
@@ -1029,6 +1136,131 @@ void CodeGenerator::GenerateNormalize(ValueDescription value, SymbolLocation out
 			TranslateValue(value),
 			TranslateValue({ out, value.type }));
 	}
+}
+
+void CodeGenerator::GenerateLength(ValueDescription value, SymbolLocation out)
+{
+	assert(value.type->GetType() == BuiltinTypeType::Vec4);
+
+	OperandAssistant assitant(this, out, BuiltinType::Get(BuiltinTypeType::Float));
+
+	if (out != value.location)
+		GenerateWrite({ out, value.type }, value);
+
+	CodeBytes({ 0x66, 0x0F, 0x3A, 0x40 });
+	CodeBytes(ConstructModRM(out, out));
+	CodeBytes(0x77);
+
+	DebugAsm("dpps $,$,0x77",
+		TranslateValue({ out, value.type }),
+		TranslateValue({ out, value.type }));
+
+	CodeBytes({ 0xF3, 0x0F, 0x51 });
+	CodeBytes(ConstructModRM(out, out));
+
+	DebugAsm("sqrtss $,$",
+		TranslateValue({ out, value.type }),
+		TranslateValue({ out, value.type }));
+}
+
+void CodeGenerator::GenerateDot(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
+{
+	assert(lhs.type->GetType() == BuiltinTypeType::Vec4);
+	assert(rhs.type->GetType() == BuiltinTypeType::Vec4);
+
+	OperandAssistant assitant(this, out, BuiltinType::Get(BuiltinTypeType::Float));
+
+	if (out != lhs.location)
+	{
+		if (out == rhs.location)
+			std::swap(lhs, rhs);
+		else
+			GenerateWrite({ out, lhs.type }, lhs);
+	}
+
+	CodeBytes({ 0x66, 0x0F, 0x3A, 0x40 });
+	CodeBytes(ConstructModRM(out, rhs.location));
+	CodeBytes(0x77);
+
+	DebugAsm("dpps $,$,0x77",
+		TranslateValue({ out, lhs.type }),
+		TranslateValue(rhs));
+}
+
+void CodeGenerator::GenerateClamp(ValueDescription value, ValueDescription min, ValueDescription max,
+	SymbolLocation out)
+{
+	assert(value.type->GetType() == BuiltinTypeType::Float);
+	assert(min.type->GetType() == BuiltinTypeType::Float);
+	assert(max.type->GetType() == BuiltinTypeType::Float);
+
+	OperandAssistant assitant(this, out, value.type);
+
+	SymbolLocation temp = out;
+
+	std::unique_ptr<Layout::TemporaryRegister> reg;
+
+	if (out == value.location || out == min.location || out == max.location)
+	{
+		reg = m_layout.GetFreeXmmRegister();
+		temp = reg->Location();
+	}
+
+	GenerateWrite({ temp, value.type }, value);
+
+	CodeBytes({ 0x0F, 0x2F });
+	CodeBytes(ConstructModRM(temp, min.location));
+
+	DebugAsm("comiss $,$",
+		TranslateValue({ temp, value.type }),
+		TranslateValue(min));
+
+	CodeBytes({ 0x7D, 0x00 });
+
+	JumpPatcher maxTest(&m_currentFunctionCode, -1);
+
+	DebugAsm("jge x");
+
+	GenerateWrite({ out, value.type }, min);
+
+	CodeBytes({ 0xEB, 0x00 });
+
+	JumpPatcher endClamp(&m_currentFunctionCode, -1);
+
+	DebugAsm("jmp x");
+
+	maxTest.PatchToHere();
+
+	CodeBytes({ 0x0F, 0x2F });
+	CodeBytes(ConstructModRM(temp, max.location));
+
+	DebugAsm("comiss $,$",
+		TranslateValue({ temp, value.type }),
+		TranslateValue(max));
+
+	CodeBytes({ 0x7E, 0x00 });
+
+	JumpPatcher isValue(&m_currentFunctionCode, -1);
+
+	DebugAsm("jle x");
+
+	GenerateWrite({ out, value.type }, max);
+
+	CodeBytes({ 0xEB, 0x00 });
+
+	JumpPatcher endClamp2(&m_currentFunctionCode, -1);
+
+	DebugAsm("jmp x");
+
+	isValue.PatchToHere();
+
+	if (out != value.location)
+	{
+		GenerateWrite({ out, value.type }, value);
+	}
+
+	endClamp.PatchToHere();
+	endClamp2.PatchToHere();
 }
 
 void CodeGenerator::GenerateMultiplyMatrixMatrix(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
@@ -1214,7 +1446,7 @@ void CodeGenerator::GenerateMultiplyVectorScalar(ValueDescription lhs, ValueDesc
 	CodeBytes({ 0x0F, 0x59 });
 	CodeBytes(ConstructModRM(out, scalars));
 
-	DebugAsm("mulps $,$,0",
+	DebugAsm("mulps $,$",
 		TranslateValue({ out, vectorType }),
 		TranslateValue({ scalars, vectorType }));
 }
@@ -1272,26 +1504,27 @@ void CodeGenerator::GenerateVectorInstruction(bool commutitive, const Instructio
 
 	for (uint32_t i = 0; i < size; i += 4 * 4)
 	{
-		SymbolLocation source = lhs.location;
-		source.m_data = lhs.location.m_data + i;
+		SymbolLocation sourceLhs = lhs.location;
+		sourceLhs.m_data = lhs.location.m_data + i;
 
-		assert(i == 0 || source.InMemory());
+		SymbolLocation sourceRhs = rhs.location;
+		sourceRhs.m_data = rhs.location.m_data + i;
 
-		SymbolLocation location = source;
+		assert(i == 0 || (sourceLhs.InMemory() && sourceRhs.InMemory()));
 
 		BuiltinType * elementType = type->GetElementType();
 
 		// XXX: get the basic vector type
 		BuiltinType * vectorType = (elementType->IsVector() ? elementType : type);
 
+		SymbolLocation location = out;
+		location.m_data = out.m_data + i;
+
+		assert(i == 0 || location.InMemory());
+
 		OperandAssistant assistant(this, location, vectorType);
 
-		if (location != lhs.location)
-			GenerateWrite({ location, vectorType }, { source, vectorType });
-
-		GenerateInstruction(commutitive, instruction, { location, vectorType }, rhs, location);
-
-		GenerateWrite({ out, vectorType }, { location, vectorType });
+		GenerateInstruction(commutitive, instruction, { sourceLhs, vectorType }, { sourceRhs, vectorType }, location);
 	}
 }
 
@@ -1405,11 +1638,21 @@ std::string CodeGenerator::TranslateValue(const ValueDescription & value)
 	{
 		if (value.location.m_type == SymbolLocation::GlobalMemory)
 		{
-			return "[" + AsHex(value.location.m_data) + "]";
+			Symbol * symbol = m_symbolTable.ResolveAddress(value.location.m_data, nullptr);
+
+			if (symbol)
+				return "[" + symbol->GetName() + "]";
+			else
+				return "[" + AsHex(value.location.m_data) + "]";
 		}
 		else if (value.location.m_type == SymbolLocation::LocalMemory)
 		{
-			return "[rsi + " + std::to_string(value.location.m_data) + "]";
+			Symbol * symbol = m_symbolTable.ResolveAddress(value.location.m_data, m_currentFunction);
+
+			if (symbol)
+				return "[" + symbol->GetName() + "]";
+			else
+				return "[rsi + " + std::to_string(value.location.m_data) + "]";
 		}
 		else if (value.location.m_type == SymbolLocation::IndirectRegister)
 		{

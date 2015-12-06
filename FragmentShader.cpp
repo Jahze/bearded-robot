@@ -1,6 +1,6 @@
-
 #include <cassert>
 #include "FragmentShader.h"
+#include "ShadyObject.h"
 
 namespace
 {
@@ -13,28 +13,33 @@ namespace
 	{
 		return std::min<Real>(std::max<Real>(value, min), max);
 	}
+
+	const std::string g_light0_position("g_light0_position");
+	const std::string g_world_position("g_world_position");
+	const std::string g_world_normal("g_world_normal");
+	const std::string g_colour("g_colour");
 }
 
 Colour FragmentShader::Execute(int x, int y) const
 {
 	VertexShaderOutput interpolated = InterpolateForContext(x, y);
-	Vector3 directionToLight = m_lightPosition - interpolated.m_position;
-	Real lightDistance = directionToLight.Length();
-
-	directionToLight.Normalize();
-
-	const Vector3 ambient(0.2, 0.2, 0.2);
-	const Vector3 diffuse(1.0, 1.0, 1.0);
-	const Vector3 specular(1.0, 1.0, 1.0);
-
-	Real dot = interpolated.m_normal.Dot(directionToLight);
-
-	Real clamped = std::max<Real>(0.0, dot);
-
-	const Real k = 0.1;
-	const int shininess = 4;
-	Real attenuation = 1.0 / (lightDistance * k);
-	Vector3 colour = ambient + (diffuse * clamped * attenuation);
+	//Vector3 directionToLight = m_lightPosition - interpolated.m_position;
+	//Real lightDistance = directionToLight.Length();
+	//
+	//directionToLight.Normalize();
+	//
+	//const Vector3 ambient(0.2, 0.2, 0.2);
+	//const Vector3 diffuse(1.0, 1.0, 1.0);
+	//const Vector3 specular(1.0, 1.0, 1.0);
+	//
+	//Real dot = interpolated.m_normal.Dot(directionToLight);
+	//
+	//Real clamped = std::max<Real>(0.0, dot);
+	//
+	//const Real k = 0.1;
+	//const int shininess = 4;
+	//Real attenuation = 1.0 / (lightDistance * k);
+	//Vector3 colour = ambient + (diffuse * clamped * attenuation);
 
 	//if (dot > 0.0)
 	//{
@@ -50,7 +55,24 @@ Colour FragmentShader::Execute(int x, int y) const
 	//	colour = colour + (specular * std::pow(cosa, shininess) * attenuation);
 	//}
 
-	return { Clamp(colour.x, 0.0, 1.0), Clamp(colour.y, 0.0, 1.0), Clamp(colour.z, 0.0, 1.0) };
+	if (m_shader)
+	{
+		m_shader->WriteGlobal(g_light0_position, m_lightPosition);
+		m_shader->WriteGlobal(g_world_position, interpolated.m_position);
+		m_shader->WriteGlobal(g_world_normal, interpolated.m_normal);
+
+		m_shader->Execute();
+
+		Vector4 c;
+
+		m_shader->LoadGlobal(g_colour, &c);
+
+		//return Colour::White;
+		return { c.x, c.y, c.z };
+	}
+
+	return Colour::White;
+	//return { Clamp(colour.x, 0.0, 1.0), Clamp(colour.y, 0.0, 1.0), Clamp(colour.z, 0.0, 1.0) };
 }
 
 VertexShaderOutput FragmentShader::InterpolateForContext(int x, int y) const

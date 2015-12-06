@@ -5,6 +5,7 @@
 class Colour
 {
 public:
+	const static Colour Black;
 	const static Colour White;
 	const static Colour Red;
 	const static Colour Blue;

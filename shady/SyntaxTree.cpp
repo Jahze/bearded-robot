@@ -306,8 +306,6 @@ uint32_t SyntaxTree::CollectDeclarationDecorators()
 	return 0u;
 }
 
-// TODO: function calls
-
 void SyntaxTree::FunctionOrVariable()
 {
 	uint32_t flags = CollectDeclarationDecorators();
@@ -822,13 +820,12 @@ std::unique_ptr<SyntaxNode> SyntaxTree::PostfixExpression()
 			std::unique_ptr<SyntaxNode> call = std::make_unique<SyntaxNode>(nullptr, SyntaxNodeType::FunctionCall);
 			call->AddChild(std::move(atom));
 
-			m_currentExpressionType = function->GetReturnType();
-
 			if (Is(m_iterator->Peek(), TokenType::RoundBracketRight))
 			{
 				m_iterator->Next();
 				CheckFunctionArgumentList(start, function, arguments);
 				atom = std::move(call);
+				m_currentExpressionType = function->GetReturnType();
 				continue;
 			}
 
@@ -842,13 +839,11 @@ std::unique_ptr<SyntaxNode> SyntaxTree::PostfixExpression()
 
 				if (Is(token.m_type, TokenType::RoundBracketRight))
 				{
-					//token = m_iterator->Next();
 					break;
 				}
 
 				if (Is(token.m_type, TokenType::Comma))
 				{
-					//token = m_iterator->Next();
 					continue;
 				}
 
@@ -861,6 +856,7 @@ std::unique_ptr<SyntaxNode> SyntaxTree::PostfixExpression()
 				call->AddChild(std::move(argument.first));
 
 			atom = std::move(call);
+			m_currentExpressionType = function->GetReturnType();
 		}
 		else
 		{
@@ -875,9 +871,18 @@ std::unique_ptr<SyntaxNode> SyntaxTree::ExpressionAtom()
 {
 	tokeniser::Token token = m_iterator->Next();
 
-	// TODO: bracketed expression
+	if (Is(token.m_type, TokenType::RoundBracketLeft))
+	{
+		std::unique_ptr<SyntaxNode> expression = AssignmentExpression();
 
-	if (Is(token.m_type, TokenType::Identifier))
+		token = m_iterator->Next();
+
+		if (! Is(token.m_type, TokenType::RoundBracketRight))
+			throw SyntaxException(token, "Unclosed bracketed expression");
+
+		return expression;
+	}
+	else if (Is(token.m_type, TokenType::Identifier))
 	{
 		std::unique_ptr<SyntaxNode> name = std::make_unique<SyntaxNode>(nullptr, SyntaxNodeType::Name);
 		name->m_data = token.m_data;

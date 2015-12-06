@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <string>
 #include <vector>
 #include "BuiltinTypes.h"
@@ -31,6 +32,7 @@ class ProgramContext
 {
 public:
 	static const ProgramContext & VertexShaderContext();
+	static const ProgramContext & FragmentShaderContext();
 
 	// TODO : combine FunctionTable/SymbolTable
 	void ApplyToSymbolTable(SymbolTable & symbolTable, FunctionTable & functionTable) const;
@@ -38,9 +40,10 @@ public:
 	const ContextVariable * GetVariable(const std::string & name) const;
 
 private:
-	ProgramContext(std::vector<ContextVariable> && variables, std::vector<ContextFunction> && functions)
-		: m_variables(variables)
-		, m_functions(functions)
+	template<std::size_t N>
+	ProgramContext(std::vector<ContextVariable> && variables, const std::array<ContextFunction, N> & functions)
+		: m_variables(std::move(variables))
+		, m_functions(functions.begin(), functions.end())
 	{ }
 
 private:

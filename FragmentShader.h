@@ -4,9 +4,15 @@
 #include "Colour.h"
 #include "VertexShader.h"
 
+class ShadyObject;
+
 class FragmentShader
 {
 public:
+	FragmentShader(ShadyObject * shader)
+		: m_shader(shader)
+	{ }
+
 	Colour Execute(int x, int y) const;
 
 	void SetLightPosition(const Vector3 & position)
@@ -25,4 +31,5 @@ private:
 private:
 	const std::array<VertexShaderOutput, 3> * m_triangleContext = nullptr;
 	Vector3 m_lightPosition;
+	ShadyObject *m_shader;
 };

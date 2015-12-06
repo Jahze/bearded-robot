@@ -17,7 +17,18 @@ namespace
 	}
 }
 
-std::unique_ptr<ShadyObject> ShaderCompiler::Compile(const std::string & source, std::string & error)
+std::unique_ptr<ShadyObject> ShaderCompiler::CompileVertexShader(const std::string & source, std::string & error)
+{
+	return Compile(ProgramContext::VertexShaderContext(), source, error);
+}
+
+std::unique_ptr<ShadyObject> ShaderCompiler::CompileFragmentShader(const std::string & source, std::string & error)
+{
+	return Compile(ProgramContext::FragmentShaderContext(), source, error);
+}
+
+std::unique_ptr<ShadyObject> ShaderCompiler::Compile(const ProgramContext & context, const std::string & source,
+	std::string & error)
 {
 	tokeniser::TextStream text(source);
 	tokeniser::TokenDefinitions definitions(CreateDefinitions());
@@ -28,7 +39,7 @@ std::unique_ptr<ShadyObject> ShaderCompiler::Compile(const std::string & source,
 		return nullptr;
 
 	tokeniser::Token errorToken;
-	SyntaxTree tree(ProgramContext::VertexShaderContext());
+	SyntaxTree tree(context);
 
 	if (! tree.Parse(tokens.GetTokens(), error, errorToken))
 	{
@@ -73,8 +84,7 @@ std::unique_ptr<ShadyObject> ShaderCompiler::Compile(const std::string & source,
 
 	std::unique_ptr<ShadyObject> object = std::make_unique<ShadyObject>(0x1000);
 
-	CodeGenerator generator(object->GetStart(),
-		ProgramContext::VertexShaderContext(), tree.GetSymbolTable(), tree.GetFunctionTable());
+	CodeGenerator generator(object->GetStart(), context, tree.GetSymbolTable(), tree.GetFunctionTable());
 
 	generator.Generate(object.get(), tree.GetRoot());
 

@@ -1,4 +1,5 @@
 #include <cassert>
+#include <memory>
 #include "Colour.h"
 #include "FrameBuffer.h"
 #include "Rasteriser.h"
@@ -32,7 +33,10 @@ void Rasteriser::DrawTriangle(const std::array<VertexShaderOutput, 3> & triangle
 	std::sort(std::begin(points), std::end(points),
 		[](const Point & p1, const Point & p2) { return p1.y < p2.y; });
 
-	FragmentShader shader;
+	extern std::unique_ptr<ShadyObject> g_fragmentShader;
+
+	FragmentShader shader(g_fragmentShader.get());
+
 	shader.SetTriangleContext(&triangle);
 	shader.SetLightPosition(m_lightPosition);
 

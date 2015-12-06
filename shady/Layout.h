@@ -109,6 +109,7 @@ public:
 
 	void PlaceGlobal(Symbol * symbol);
 	void PlaceGlobalInMemory(Symbol * symbol);
+	void PlaceLocalInMemory(Symbol * symbol);
 	SymbolLocation PlaceGlobalFloatInMemory();
 	SymbolLocation PlaceGlobalVectorInMemory();
 

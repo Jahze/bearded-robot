@@ -167,6 +167,8 @@ public:
 
 	std::vector<Symbol*> GetGlobalSymbols() const;
 
+	Symbol * ResolveAddress(uint32_t address, Function * function) const;
+
 private:
 	std::unordered_map<Function*, std::vector<std::unique_ptr<Symbol>>> m_symbols;
 };

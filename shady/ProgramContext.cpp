@@ -5,6 +5,19 @@
 #include "ProgramContext.h"
 #include "SymbolTable.h"
 
+namespace
+{
+	const std::array<ContextFunction, 4> functions =
+	{{
+		{ "normalize", BuiltinTypeType::Vec4, { BuiltinTypeType::Vec4 } },
+		{ "length", BuiltinTypeType::Float, { BuiltinTypeType::Vec4 } },
+		{ "dot", BuiltinTypeType::Float, { BuiltinTypeType::Vec4, BuiltinTypeType::Vec4 } },
+		{ "clamp", BuiltinTypeType::Float, { BuiltinTypeType::Float, BuiltinTypeType::Float, BuiltinTypeType::Float } },
+		// TODO : clamp vector could have a special implementation using cmpps
+	}};
+
+}
+
 const ProgramContext & ProgramContext::VertexShaderContext()
 {
 	static ProgramContext context
@@ -23,9 +36,24 @@ const ProgramContext & ProgramContext::VertexShaderContext()
 			{ "g_world_position", BuiltinTypeType::Vec4, ContextVariable::Output },
 			{ "g_world_normal", BuiltinTypeType::Vec4, ContextVariable::Output },
 		},
+		functions
+	};
+
+	return context;
+}
+
+const ProgramContext & ProgramContext::FragmentShaderContext()
+{
+	static ProgramContext context
+	{
 		{
-			{ "normalize", BuiltinTypeType::Vec4, { BuiltinTypeType::Vec4 } },
-		}
+			{ "g_world_position", BuiltinTypeType::Vec4, ContextVariable::Input },
+			{ "g_world_normal", BuiltinTypeType::Vec4, ContextVariable::Input },
+			{ "g_light0_position", BuiltinTypeType::Vec4, ContextVariable::Input },
+
+			{ "g_colour", BuiltinTypeType::Vec4, ContextVariable::Output },
+		},
+		functions
 	};
 
 	return context;

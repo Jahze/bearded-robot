@@ -71,3 +71,32 @@ std::vector<Symbol*> SymbolTable::GetGlobalSymbols() const
 
 	return out;
 }
+
+Symbol * SymbolTable::ResolveAddress(uint32_t address, Function * function) const
+{
+	auto symbols = m_symbols.find(function);
+
+	if (symbols != m_symbols.end())
+	{
+		for (auto && symbol : symbols->second)
+		{
+			const SymbolLocation & location = symbol->GetLocation();
+
+			if (location.m_data == address)
+			{
+				if ((function && location.m_type == SymbolLocation::LocalMemory) ||
+					(! function && location.m_type == SymbolLocation::GlobalMemory))
+				{
+					return symbol.get();
+				}
+			}
+		}
+	}
+
+	if (function)
+	{
+		return ResolveAddress(address, nullptr);
+	}
+
+	return nullptr;
+}

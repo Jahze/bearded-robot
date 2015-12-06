@@ -37,6 +37,7 @@ int main()
 		"}";
 	*/
 
+	/*
 	std::string test =
 		"export void main()\n"
 		"{\n"
@@ -45,6 +46,40 @@ int main()
 		"	g_projected_position[1] /= g_projected_position[3];\n"
 		"	g_projected_position[2] /= g_projected_position[3];\n"
 		"	g_world_position = normalize(g_model * g_normal);\n"
+		"	return;\n"
+		"}\n";
+	*/
+
+	std::string test =
+		"export void main()\n"
+		"{\n"
+		"	vec4 directionToLight = g_light0_position - g_world_position;\n"
+		"	float lightDistance = length(directionToLight);\n"
+		"\n"
+		"	directionToLight = normalize(directionToLight);\n"
+		"\n"
+		"	vec4 ambient;\n"
+		"	ambient[0] = 0.2;\n"
+		"	ambient[1] = 0.2;\n"
+		"	ambient[2] = 0.2;\n"
+		"\n"
+		"	vec4 diffuse;\n"
+		"	diffuse[0] = 1.0;\n"
+		"	diffuse[1] = 1.0;\n"
+		"	diffuse[2] = 1.0;\n"
+		"\n"
+		"	float dp = dot(g_world_normal, directionToLight);\n"
+		"	float clamped = clamp(dp, 0.0, dp);\n"
+		"\n"
+		"	float k = 0.1;\n"
+		"	float attenuation = 1.0 / (lightDistance * k);\n"
+		"\n"
+		"	vec4 colour = ambient + (diffuse * clamped * attenuation);\n"
+		"\n"
+		"	g_colour[0] = clamp(colour[0], 0.0, 1.0);\n"
+		"	g_colour[1] = clamp(colour[1], 0.0, 1.0);\n"
+		"	g_colour[2] = clamp(colour[2], 0.0, 1.0);\n"
+		"\n"
 		"	return;\n"
 		"}\n";
 
@@ -59,7 +94,8 @@ int main()
 		return 1;
 
 	tokeniser::Token errorToken;
-	SyntaxTree tree(ProgramContext::VertexShaderContext());
+	//SyntaxTree tree(ProgramContext::VertexShaderContext());
+	SyntaxTree tree(ProgramContext::FragmentShaderContext());
 
 	if (! tree.Parse(tokens.GetTokens(), error, errorToken))
 	{
@@ -99,12 +135,13 @@ int main()
 		}
 
 		std::cout << message;
+		return 1;
 	}
 
 	ShadyObject object(0x1000);
 
 	CodeGenerator generator(object.GetStart(),
-		ProgramContext::VertexShaderContext(), tree.GetSymbolTable(), tree.GetFunctionTable());
+		ProgramContext::FragmentShaderContext(), tree.GetSymbolTable(), tree.GetFunctionTable());
 
 	generator.Generate(&object, tree.GetRoot());
 

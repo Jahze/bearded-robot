@@ -83,6 +83,11 @@ void Layout::PlaceGlobalInMemory(Symbol * symbol)
 	PlaceInMemory(symbol->GetType(), symbol->GetLocation(), ScopeType::Global);
 }
 
+void Layout::PlaceLocalInMemory(Symbol * symbol)
+{
+	PlaceInMemory(symbol->GetType(), symbol->GetLocation(), ScopeType::Local);
+}
+
 SymbolLocation Layout::PlaceGlobalFloatInMemory()
 {
 	SymbolLocation out;
@@ -114,11 +119,16 @@ void Layout::PlaceParametersAndLocals(Function * function)
 
 	for (auto && local : function->GetLocals())
 	{
-		BuiltinType * type = local->GetType();
+		//BuiltinType * type = local->GetType();
+		//
+		//if (! StandardPlacement(type, local->GetLocation(), ScopeType::Local))
+		//	throw LayoutException("Cannot layout variable '" + local->GetName() +
+		//		"' of type '" + type->GetName() + "'");
 
-		if (! StandardPlacement(type, local->GetLocation(), ScopeType::Local))
-			throw LayoutException("Cannot layout variable '" + local->GetName() +
-				"' of type '" + type->GetName() + "'");
+		// TODO : placing locals in registers isn't a good idea when there are a lot of locals
+		// need a way to flag when locals are in registers and keep them there if possible
+
+		PlaceLocalInMemory(local);
 	}
 }
 
