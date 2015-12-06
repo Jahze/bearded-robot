@@ -46,6 +46,33 @@ public:
 
 	void WriteFunctions(const std::unordered_map<std::string, FunctionCode> & functions);
 
+	class GlobalWriter
+	{
+	public:
+		GlobalWriter(void * destination, bool byAddress)
+			: m_destination(destination)
+			, m_byAddress(byAddress)
+		{ }
+
+		template<typename T>
+		void Write(const T & t) const
+		{
+			if (! m_byAddress)
+			{
+				std::memcpy(m_destination, &t, sizeof(T));
+			}
+			else
+			{
+				const void * p = &t;
+				std::memcpy(m_destination, &p, sizeof(void*));
+			}
+		}
+
+	private:
+		void *const m_destination;
+		bool m_byAddress;
+	};
+
 	template<typename T>
 	void WriteGlobal(const std::string & name, const T & t)
 	{
@@ -70,8 +97,37 @@ public:
 		}
 	}
 
-	template<typename T>
-	void LoadGlobal(const std::string & name, T * p)
+	class GlobalReader
+	{
+	public:
+		GlobalReader(void * source)
+			: m_source(source)
+		{ }
+
+		template<typename T>
+		void Read(T & t) const
+		{
+			std:memcpy(&t, m_source, sizeof(T));
+		}
+
+	private:
+		void *const m_source;
+	};
+
+	GlobalWriter GetGlobalLocation(const std::string & name)
+	{
+		auto iter = m_globals.find(name);
+
+		if (iter == m_globals.end())
+			throw std::runtime_error("couldn't find global '" + name + "'");
+
+		char * pointer = reinterpret_cast<char*>((void*)m_object);
+		pointer += iter->second.second;
+
+		return GlobalWriter(pointer, iter->second.first != Memory);
+	}
+
+	GlobalReader GetGlobalReader(const std::string & name)
 	{
 		auto iter = m_globals.find(name);
 
@@ -83,7 +139,7 @@ public:
 
 		assert(iter->second.first == Memory);
 
-		std::memcpy(p, pointer, sizeof(T));
+		return GlobalReader(pointer);
 	}
 
 private:
@@ -102,6 +158,7 @@ private:
 
 	std::unordered_map<std::string, void*> m_exports;
 	std::unordered_map<std::string, std::pair<GlobalType,uint32_t>> m_globals;
+	void * m_entryPoint = nullptr;
 	void * m_globalTrampoline = nullptr;
 	void * m_stackPointerSet = nullptr;
 	ScopedAlloc m_object;

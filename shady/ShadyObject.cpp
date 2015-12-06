@@ -18,17 +18,16 @@ ShadyObject::ShadyObject(uint32_t size)
 
 void ShadyObject::Execute()
 {
-	auto iter = m_exports.find("main");
+	assert(m_entryPoint);
 
-	if (iter == m_exports.end())
-		// TODO : should never happen - throw?
-		return;
-
-	void *fp = iter->second;
+	void *fp = m_entryPoint;
+	uint32_t esi_store;
 
 	__asm
 	{
+		mov [esi_store], esi
 		call [fp]
+		mov esi, [esi_store]
 	}
 }
 
@@ -119,12 +118,22 @@ void ShadyObject::WriteFunctions(const std::unordered_map<std::string, FunctionC
 		m_cursor += static_cast<uint32_t>(function.second.m_bytes.size());
 	}
 
-	void * stackStart = ObjectCursor();
-	std::size_t space;
+	{
+		// Update trampoline to set stack ptr
+		void * stackStart = ObjectCursor();
+		std::size_t space;
 
-	std::align(16, 0x1000, stackStart, space);
+		std::align(16, 0x1000, stackStart, space);
 
-	std::memcpy(m_stackPointerSet, &stackStart, sizeof(void*));
+		std::memcpy(m_stackPointerSet, &stackStart, sizeof(void*));
+	}
+
+	auto iter = m_exports.find("main");
+
+	if (iter == m_exports.end())
+		throw std::runtime_error("shader has no main() export");
+
+	m_entryPoint = iter->second;
 }
 
 void * ShadyObject::ObjectCursor() const

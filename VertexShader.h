@@ -2,10 +2,10 @@
 
 #include "Colour.h"
 #include "Matrix.h"
+#include "ShadyObject.h"
 
 class Camera;
 class Projection;
-class ShadyObject;
 
 struct VertexShaderOutput
 {
@@ -42,4 +42,14 @@ private:
 	Matrix4 m_viewTransform;
 	Matrix4 m_precomputedModelView;
 	ShadyObject *m_shader;
+
+	ShadyObject::GlobalWriter m_g_position;
+	ShadyObject::GlobalWriter m_g_normal;
+	ShadyObject::GlobalWriter m_g_model;
+	ShadyObject::GlobalWriter m_g_view;
+	ShadyObject::GlobalWriter m_g_projection;
+
+	ShadyObject::GlobalReader m_g_projected_position;
+	ShadyObject::GlobalReader m_g_world_position;
+	ShadyObject::GlobalReader m_g_world_normal;
 };

@@ -20,59 +20,70 @@ namespace
 	const std::string g_colour("g_colour");
 }
 
+FragmentShader::FragmentShader(ShadyObject * shader)
+	: m_shader(shader)
+	, m_g_light0_position(shader->GetGlobalLocation("g_light0_position"))
+	, m_g_world_position(shader->GetGlobalLocation("g_world_position"))
+	, m_g_world_normal(shader->GetGlobalLocation("g_world_normal"))
+	, m_g_colour(shader->GetGlobalReader("g_colour"))
+{ }
+
 Colour FragmentShader::Execute(int x, int y) const
 {
 	VertexShaderOutput interpolated = InterpolateForContext(x, y);
-	//Vector3 directionToLight = m_lightPosition - interpolated.m_position;
-	//Real lightDistance = directionToLight.Length();
-	//
-	//directionToLight.Normalize();
-	//
-	//const Vector3 ambient(0.2, 0.2, 0.2);
-	//const Vector3 diffuse(1.0, 1.0, 1.0);
-	//const Vector3 specular(1.0, 1.0, 1.0);
-	//
-	//Real dot = interpolated.m_normal.Dot(directionToLight);
-	//
-	//Real clamped = std::max<Real>(0.0, dot);
-	//
-	//const Real k = 0.1;
-	//const int shininess = 4;
-	//Real attenuation = 1.0 / (lightDistance * k);
-	//Vector3 colour = ambient + (diffuse * clamped * attenuation);
-
-	//if (dot > 0.0)
-	//{
-	//	Vector3 fromLight = -directionToLight;
-	//	Vector3 reflected = fromLight - interpolated.m_normal * (2.0 * fromLight.Dot(interpolated.m_normal));
-	//
-	//	Vector3 toCamera = Vector3::UnitZ - interpolated.m_position;
-	//	toCamera.Normalize();
-	//
-	//	Real cosa = reflected.Dot(toCamera);
-	//	cosa = std::max<Real>(0.0, cosa);
-	//
-	//	colour = colour + (specular * std::pow(cosa, shininess) * attenuation);
-	//}
 
 	if (m_shader)
 	{
-		m_shader->WriteGlobal(g_light0_position, m_lightPosition);
-		m_shader->WriteGlobal(g_world_position, interpolated.m_position);
-		m_shader->WriteGlobal(g_world_normal, interpolated.m_normal);
+		m_g_light0_position.Write(m_lightPosition);
+		m_g_world_position.Write(interpolated.m_position);
+		m_g_world_normal.Write(interpolated.m_normal);
 
 		m_shader->Execute();
 
 		Vector4 c;
 
-		m_shader->LoadGlobal(g_colour, &c);
+		m_g_colour.Read(c);
 
-		//return Colour::White;
 		return { c.x, c.y, c.z };
 	}
 
 	return Colour::White;
-	//return { Clamp(colour.x, 0.0, 1.0), Clamp(colour.y, 0.0, 1.0), Clamp(colour.z, 0.0, 1.0) };
+}
+
+void FragmentShader::SetTriangleContext(const std::array<VertexShaderOutput, 3> * triangle)
+{
+	m_triangleContext = triangle;
+
+	m_totalArea = AreaOfTriangle(
+		(*m_triangleContext)[0].m_screenX, (*m_triangleContext)[0].m_screenY,
+		(*m_triangleContext)[1].m_screenX, (*m_triangleContext)[1].m_screenY,
+		(*m_triangleContext)[2].m_screenX, (*m_triangleContext)[2].m_screenY
+	);
+}
+
+namespace
+{
+	Vector3 InterpolateVector(const Vector3 & vector0, const Vector3 & vector1, const Vector3 & vector2,
+		Real a1, Real a2, Real a3, Real total)
+	{
+		Vector3 out;
+
+		out.x = vector0.x * a1 +
+			vector1.x * a2 +
+			vector2.x * a3;
+
+		out.y =
+			vector0.y * a1 +
+			vector1.y * a2 +
+			vector2.y * a3;
+
+		out.z =
+			vector0.z * a1 +
+			vector1.z * a2 +
+			vector2.z * a3;
+
+		return out / total;
+	}
 }
 
 VertexShaderOutput FragmentShader::InterpolateForContext(int x, int y) const
@@ -80,77 +91,48 @@ VertexShaderOutput FragmentShader::InterpolateForContext(int x, int y) const
 	// https://en.wikibooks.org/wiki/GLSL_Programming/Rasterization
 	assert(m_triangleContext);
 
-	Real totalArea = AreaOfTriangle(
-		(*m_triangleContext)[0].m_screenX, (*m_triangleContext)[0].m_screenY,
-		(*m_triangleContext)[1].m_screenX, (*m_triangleContext)[1].m_screenY,
-		(*m_triangleContext)[2].m_screenX, (*m_triangleContext)[2].m_screenY
-	);
+	const VertexShaderOutput & triangle0 = (*m_triangleContext)[0];
+	const VertexShaderOutput & triangle1 = (*m_triangleContext)[1];
+	const VertexShaderOutput & triangle2 = (*m_triangleContext)[2];
 
 	Real subArea1 = AreaOfTriangle(
-		(*m_triangleContext)[1].m_screenX, (*m_triangleContext)[1].m_screenY,
-		(*m_triangleContext)[2].m_screenX, (*m_triangleContext)[2].m_screenY,
+		triangle1.m_screenX, triangle1.m_screenY,
+		triangle2.m_screenX, triangle2.m_screenY,
 		x, y
 	);
 
 	Real subArea2 = AreaOfTriangle(
-		(*m_triangleContext)[0].m_screenX, (*m_triangleContext)[0].m_screenY,
-		(*m_triangleContext)[2].m_screenX, (*m_triangleContext)[2].m_screenY,
+		triangle0.m_screenX, triangle0.m_screenY,
+		triangle2.m_screenX, triangle2.m_screenY,
 		x, y
 	);
 
 	Real subArea3 = AreaOfTriangle(
-		(*m_triangleContext)[0].m_screenX, (*m_triangleContext)[0].m_screenY,
-		(*m_triangleContext)[1].m_screenX, (*m_triangleContext)[1].m_screenY,
+		triangle0.m_screenX, triangle0.m_screenY,
+		triangle1.m_screenX, triangle1.m_screenY,
 		x, y
 	);
 
-	Real a1 = subArea1 / totalArea;
-	Real a2 = subArea2 / totalArea;
-	Real a3 = subArea3 / totalArea;
-
-	a1 /= (*m_triangleContext)[0].m_projected.w;
-	a2 /= (*m_triangleContext)[1].m_projected.w;
-	a3 /= (*m_triangleContext)[2].m_projected.w;
+	Real a1 = subArea1 / (m_totalArea *  triangle0.m_projected.w);
+	Real a2 = subArea2 / (m_totalArea *  triangle1.m_projected.w);
+	Real a3 = subArea3 / (m_totalArea *  triangle2.m_projected.w);
 
 	Real total = a1 + a2 + a3;
 
 	VertexShaderOutput output;
 
-	output.m_position.x =
-		(*m_triangleContext)[0].m_position.x * a1 +
-		(*m_triangleContext)[1].m_position.x * a2 +
-		(*m_triangleContext)[2].m_position.x * a3;
+	output.m_position = InterpolateVector(
+		triangle0.m_position,
+		triangle1.m_position,
+		triangle2.m_position,
+		a1, a2, a3, total);
+		
 
-	output.m_position.y =
-		(*m_triangleContext)[0].m_position.y * a1 +
-		(*m_triangleContext)[1].m_position.y * a2 +
-		(*m_triangleContext)[2].m_position.y * a3;
-
-	output.m_position.z =
-		(*m_triangleContext)[0].m_position.z * a1 +
-		(*m_triangleContext)[1].m_position.z * a2 +
-		(*m_triangleContext)[2].m_position.z * a3;
-
-	output.m_position = output.m_position / total;
-
-	//
-
-	output.m_normal.x =
-		(*m_triangleContext)[0].m_normal.x * a1 +
-		(*m_triangleContext)[1].m_normal.x * a2 +
-		(*m_triangleContext)[2].m_normal.x * a3;
-
-	output.m_normal.y =
-		(*m_triangleContext)[0].m_normal.y * a1 +
-		(*m_triangleContext)[1].m_normal.y * a2 +
-		(*m_triangleContext)[2].m_normal.y * a3;
-
-	output.m_normal.z =
-		(*m_triangleContext)[0].m_normal.z * a1 +
-		(*m_triangleContext)[1].m_normal.z * a2 +
-		(*m_triangleContext)[2].m_normal.z * a3;
-
-	output.m_normal = output.m_normal / total;
+	output.m_normal = InterpolateVector(
+		triangle0.m_normal,
+		triangle1.m_normal,
+		triangle2.m_normal,
+		a1, a2, a3, total);
 
 	return output;
 }
