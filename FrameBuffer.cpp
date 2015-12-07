@@ -53,9 +53,9 @@ void FrameBuffer::CopyToWindow()
 
 void FrameBuffer::SetPixel(unsigned x, unsigned y, const Colour &colour)
 {
-	unsigned char r = (colour.r / 1.0f) * 255;
-	unsigned char g = (colour.g / 1.0f) * 255;
-	unsigned char b = (colour.b / 1.0f) * 255;
+	unsigned char r = colour.r * 255;
+	unsigned char g = colour.g * 255;
+	unsigned char b = colour.b * 255;
 	unsigned start = (x * m_bytesPerPixel)  + (y * m_width * m_bytesPerPixel);
 
 	// TODO/FIXME: assuming 4 bytes per pixel

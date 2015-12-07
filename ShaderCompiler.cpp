@@ -88,5 +88,5 @@ std::unique_ptr<ShadyObject> ShaderCompiler::Compile(const ProgramContext & cont
 
 	generator.Generate(object.get(), tree.GetRoot());
 
-	return std::move(object);
+	return object;
 }
