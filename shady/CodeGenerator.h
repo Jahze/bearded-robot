@@ -92,7 +92,8 @@ private:
 
 	void GenerateNormalize(ValueDescription value, SymbolLocation out);
 	void GenerateLength(ValueDescription value, SymbolLocation out);
-	void GenerateDot(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);
+	void GenerateMax(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);
+	void GenerateDot3(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);
 	void GenerateClamp(ValueDescription value, ValueDescription min, ValueDescription max, SymbolLocation out);
 
 	void GenerateMultiplyMatrixMatrix(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);

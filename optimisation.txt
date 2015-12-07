@@ -1,0 +1,17 @@
+- some stuff says dpps is slow:
+    - tried this for dot3:
+
+        mov xmm0,[v1]
+        mulps xmm0,[v2]
+        andps xmm0,[mask] ; (0xff, 0xff, 0xff, 0x00)
+        vhaddps xmm0,xmm0
+        vhaddps xmm0,xmm0
+
+    - performed a tiny bit faster in standalone test
+    - in practice no faster (tiny bit slower maybe)
+    - CONCLUSION: find a better way to expand it or stick with dpps
+
+- performance looks a lot better when clamps are removed from final color output
+    - but then goes to shit in weird circumstances, e.g.:
+        -> remove 'k' local and use value directly
+        -> swap float clamped for '= dp;' or '= max(dp, 0.0);'

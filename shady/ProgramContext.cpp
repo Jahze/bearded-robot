@@ -7,11 +7,12 @@
 
 namespace
 {
-	const std::array<ContextFunction, 4> functions =
+	const std::array<ContextFunction, 5> functions =
 	{{
 		{ "normalize", BuiltinTypeType::Vec4, { BuiltinTypeType::Vec4 } },
 		{ "length", BuiltinTypeType::Float, { BuiltinTypeType::Vec4 } },
-		{ "dot", BuiltinTypeType::Float, { BuiltinTypeType::Vec4, BuiltinTypeType::Vec4 } },
+		{ "max", BuiltinTypeType::Float, { BuiltinTypeType::Float, BuiltinTypeType::Float } },
+		{ "dot3", BuiltinTypeType::Float, { BuiltinTypeType::Vec4, BuiltinTypeType::Vec4 } },
 		{ "clamp", BuiltinTypeType::Float, { BuiltinTypeType::Float, BuiltinTypeType::Float, BuiltinTypeType::Float } },
 		// TODO : clamp vector could have a special implementation using cmpps
 	}};

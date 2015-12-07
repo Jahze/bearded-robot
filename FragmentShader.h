@@ -12,11 +12,7 @@ public:
 
 	Colour Execute(int x, int y) const;
 
-	void SetLightPosition(const Vector3 & position)
-	{
-		m_lightPosition = position;
-	}
-
+	void SetLightPosition(const Vector3 & position);
 	void SetTriangleContext(const std::array<VertexShaderOutput, 3> * triangle);
 
 private:
@@ -34,4 +30,8 @@ private:
 	ShadyObject::GlobalWriter m_g_world_normal;
 
 	ShadyObject::GlobalReader m_g_colour;
+
+	mutable double m_runningAverage = 0;
+	mutable double m_samples = 0;
+
 };

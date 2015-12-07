@@ -847,7 +847,7 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessFunctionCall(Layout::Stack
 
 		return { out, returnType };
 	}
-	else if (name->m_data == "dot")
+	else if (name->m_data == "dot3" || name->m_data == "max")
 	{
 		assert(function->m_nodes.size() == 3);
 
@@ -863,7 +863,10 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessFunctionCall(Layout::Stack
 
 		SymbolLocation out = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Float));
 
-		GenerateDot(lhs, rhs, out);
+		if (name->m_data == "dot3")
+			GenerateDot3(lhs, rhs, out);
+		else
+			GenerateMax(lhs, rhs, out);
 
 		return { out, BuiltinType::Get(BuiltinTypeType::Float) };
 	}
@@ -929,7 +932,7 @@ CodeGenerator::ValueDescription CodeGenerator::ResolveRegisterPart(Layout::Stack
 
 		if (iter == m_constantVectors.end())
 		{
-			constantLocation = m_layout.PlaceGlobalFloatInMemory();
+			constantLocation = m_layout.PlaceGlobalVectorInMemory();
 			m_constantVectors[constant] = constantLocation;
 		}
 		else
@@ -1163,7 +1166,66 @@ void CodeGenerator::GenerateLength(ValueDescription value, SymbolLocation out)
 		TranslateValue({ out, value.type }));
 }
 
-void CodeGenerator::GenerateDot(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
+void CodeGenerator::GenerateMax(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
+{
+	assert(lhs.type->GetType() == BuiltinTypeType::Float);
+	assert(rhs.type->GetType() == BuiltinTypeType::Float);
+
+	OperandAssistant assitant(this, out, BuiltinType::Get(BuiltinTypeType::Float));
+
+	//if (out != lhs.location)
+	//{
+	//	if (out == rhs.location)
+	//		std::swap(lhs, rhs);
+	//}
+
+	// OK so adding the NOPs following this comment improve the performance by x2
+	// performance degrades again if previous section is uncommented
+	// - is it something to do with the alignment the instruction is at? like the PC
+	// - what effect does removing the mov [mem],reg instruction have for 'float clamped = 0.0'?
+
+	//CodeBytes({ 0x0F, 0x1F, 0x44, 0x00, 0x00 });
+	//CodeBytes({ 0x0F, 0x1F, 0x44, 0x00, 0x00 });
+
+	// this one does it by itself
+	CodeBytes({ 0x66, 0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00 });
+
+	std::unique_ptr<Layout::TemporaryRegister> reg = m_layout.GetFreeXmmRegister();
+	GenerateWrite({reg->Location(), rhs.type}, rhs);
+	rhs.location = reg->Location();
+
+	CodeBytes({ 0x0F, 0x2F });
+	CodeBytes(ConstructModRM(lhs.location, rhs.location));
+
+	DebugAsm("comiss $,$",
+		TranslateValue(lhs),
+		TranslateValue(rhs));
+
+	CodeBytes({ 0x7E, 0x00 });
+
+	JumpPatcher rhsBigger(&m_currentFunctionCode, -1);
+
+	DebugAsm("jle x");
+
+	if (lhs.location != out)
+	{
+		GenerateWrite({ out, lhs.type }, lhs);
+	}
+
+	CodeBytes({ 0xEB, 0x00 });
+
+	JumpPatcher end(&m_currentFunctionCode, -1);
+
+	DebugAsm("jmp x");
+
+	rhsBigger.PatchToHere();
+
+	GenerateWrite({ out, lhs.type }, rhs);
+
+	end.PatchToHere();
+
+}
+void CodeGenerator::GenerateDot3(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
 {
 	assert(lhs.type->GetType() == BuiltinTypeType::Vec4);
 	assert(rhs.type->GetType() == BuiltinTypeType::Vec4);
@@ -1185,6 +1247,52 @@ void CodeGenerator::GenerateDot(ValueDescription lhs, ValueDescription rhs, Symb
 	DebugAsm("dpps $,$,0x77",
 		TranslateValue({ out, lhs.type }),
 		TranslateValue(rhs));
+
+	/*
+	GenerateInstruction(true, instruction::Multiply, { out, lhs.type }, rhs, out);
+
+	const int one = -1;
+	std::tuple<float, float, float, float> constant {
+		*reinterpret_cast<const float*>(&one),
+		*reinterpret_cast<const float*>(&one),
+		*reinterpret_cast<const float*>(&one),
+		0.0f };
+
+	SymbolLocation constantLocation;
+
+	auto iter = m_constantVectors.find(constant);
+
+	if (iter == m_constantVectors.end())
+	{
+		constantLocation = m_layout.PlaceGlobalVectorInMemory();
+		m_constantVectors[constant] = constantLocation;
+	}
+	else
+	{
+		constantLocation = iter->second;
+	}
+
+	CodeBytes({ 0x0F, 0x54 });
+	CodeBytes(ConstructModRM(out, constantLocation));
+
+	DebugAsm("andps $,$",
+		TranslateValue({ out, lhs.type }),
+		TranslateValue({ constantLocation, lhs.type }));
+
+	CodeBytes({ 0xF2, 0x0F, 0x7C });
+	CodeBytes(ConstructModRM(out, out));
+
+	DebugAsm("haddps $,$",
+		TranslateValue({ out, lhs.type }),
+		TranslateValue({ out, lhs.type }));
+
+	CodeBytes({ 0xF2, 0x0F, 0x7C });
+	CodeBytes(ConstructModRM(out, out));
+
+	DebugAsm("haddps $,$",
+		TranslateValue({ out, lhs.type }),
+		TranslateValue({ out, lhs.type }));
+	*/
 }
 
 void CodeGenerator::GenerateClamp(ValueDescription value, ValueDescription min, ValueDescription max,
@@ -1195,6 +1303,39 @@ void CodeGenerator::GenerateClamp(ValueDescription value, ValueDescription min, 
 	assert(max.type->GetType() == BuiltinTypeType::Float);
 
 	OperandAssistant assitant(this, out, value.type);
+
+	// min/max seems a lot slower!
+	/*
+	SymbolLocation temp = out;
+
+	std::unique_ptr<Layout::TemporaryRegister> reg;
+
+	if (out == min.location || out == max.location)
+	{
+		reg = m_layout.GetFreeXmmRegister();
+		temp = reg->Location();
+	}
+
+	if (temp != value.location)
+		GenerateWrite({ temp, value.type }, value);
+
+	CodeBytes({ 0xF3, 0x0F, 0x5F });
+	CodeBytes(ConstructModRM(temp, min.location));
+
+	DebugAsm("maxss $,$",
+		TranslateValue({ temp, value.type }),
+		TranslateValue(min));
+
+	CodeBytes({ 0xF3, 0x0F, 0x5D });
+	CodeBytes(ConstructModRM(out, max.location));
+
+	DebugAsm("minss $,$",
+		TranslateValue({ temp, value.type }),
+		TranslateValue(max));
+
+	if (out != temp)
+		GenerateWrite({ out, value.type }, { temp, value.type });
+	*/
 
 	SymbolLocation temp = out;
 
@@ -1219,6 +1360,7 @@ void CodeGenerator::GenerateClamp(ValueDescription value, ValueDescription min, 
 
 	JumpPatcher maxTest(&m_currentFunctionCode, -1);
 
+	// TODO should be jae/jbe
 	DebugAsm("jge x");
 
 	GenerateWrite({ out, value.type }, min);

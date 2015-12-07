@@ -66,17 +66,23 @@ namespace
 			"	diffuse[1] = 1.0;\n"
 			"	diffuse[2] = 1.0;\n"
 			"\n"
-			"	float dp = dot(g_world_normal, directionToLight);\n"
-			"	float clamped = clamp(dp, 0.0, dp);\n"
+			"	float dp = dot3(g_world_normal, directionToLight);\n"
+			"	float clamped = max(dp, 0.0);\n"
+			//"	float clamped = clamp(dp, 0.0, dp);\n"
+			//"	float clamped = dp;\n"
+			//"	float clamped = 0.0;\n"
 			"\n"
 			"	float k = 0.1;\n"
 			"	float attenuation = 1.0 / (lightDistance * k);\n"
 			"\n"
 			"	vec4 colour = ambient + (diffuse * clamped * attenuation);\n"
 			"\n"
-			"	g_colour[0] = clamp(colour[0], 0.0, 1.0);\n"
-			"	g_colour[1] = clamp(colour[1], 0.0, 1.0);\n"
-			"	g_colour[2] = clamp(colour[2], 0.0, 1.0);\n"
+			//"	g_colour[0] = clamp(colour[0], 0.0, 1.0);\n"
+			//"	g_colour[1] = clamp(colour[1], 0.0, 1.0);\n"
+			//"	g_colour[2] = clamp(colour[2], 0.0, 1.0);\n"
+			"	g_colour[0] = colour[0];\n"
+			"	g_colour[1] = colour[1];\n"
+			"	g_colour[2] = colour[2];\n"
 			"\n"
 			"	return;\n"
 			"}\n";
@@ -303,7 +309,7 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, int nCmdShow)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, int nCmdShow)
 {
 	g_vertexShader = CreateVertexShader();
 	g_fragmentShader = CreateFragmentShader();

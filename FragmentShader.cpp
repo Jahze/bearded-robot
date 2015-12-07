@@ -2,6 +2,8 @@
 #include "FragmentShader.h"
 #include "ShadyObject.h"
 
+#include <Windows.h>
+
 namespace
 {
 	Real AreaOfTriangle(Real x1, Real y1, Real x2, Real y2, Real x3, Real y3)
@@ -13,11 +15,6 @@ namespace
 	{
 		return std::min<Real>(std::max<Real>(value, min), max);
 	}
-
-	const std::string g_light0_position("g_light0_position");
-	const std::string g_world_position("g_world_position");
-	const std::string g_world_normal("g_world_normal");
-	const std::string g_colour("g_colour");
 }
 
 FragmentShader::FragmentShader(ShadyObject * shader)
@@ -34,11 +31,29 @@ Colour FragmentShader::Execute(int x, int y) const
 
 	if (m_shader)
 	{
-		m_g_light0_position.Write(m_lightPosition);
 		m_g_world_position.Write(interpolated.m_position);
 		m_g_world_normal.Write(interpolated.m_normal);
 
+		//LARGE_INTEGER start, end;
+		//::QueryPerformanceCounter(&start);
+		uint64_t start = __rdtsc();
 		m_shader->Execute();
+		uint64_t end = __rdtsc();
+		//::QueryPerformanceCounter(&end);
+
+		//double time = (double)(end.QuadPart - start.QuadPart);
+		double time = (double)(end - start);
+
+		if (m_samples == 0)
+		{
+			m_runningAverage = time;
+		}
+		else
+		{
+			m_runningAverage = ((m_runningAverage * m_samples) + time) / (m_samples + 1);
+		}
+
+		++m_samples;
 
 		Vector4 c;
 
@@ -48,6 +63,12 @@ Colour FragmentShader::Execute(int x, int y) const
 	}
 
 	return Colour::White;
+}
+
+void FragmentShader::SetLightPosition(const Vector3 & position)
+{
+	m_lightPosition = position;
+	m_g_light0_position.Write(m_lightPosition);
 }
 
 void FragmentShader::SetTriangleContext(const std::array<VertexShaderOutput, 3> * triangle)
@@ -66,23 +87,12 @@ namespace
 	Vector3 InterpolateVector(const Vector3 & vector0, const Vector3 & vector1, const Vector3 & vector2,
 		Real a1, Real a2, Real a3, Real total)
 	{
-		Vector3 out;
+		return {
+			(vector0.x * a1 + vector1.x * a2 + vector2.x * a3) / total,
+			(vector0.y * a1 + vector1.y * a2 + vector2.y * a3) / total,
+			(vector0.z * a1 + vector1.z * a2 + vector2.z * a3) / total,
 
-		out.x = vector0.x * a1 +
-			vector1.x * a2 +
-			vector2.x * a3;
-
-		out.y =
-			vector0.y * a1 +
-			vector1.y * a2 +
-			vector2.y * a3;
-
-		out.z =
-			vector0.z * a1 +
-			vector1.z * a2 +
-			vector2.z * a3;
-
-		return out / total;
+		};
 	}
 }
 

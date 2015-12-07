@@ -16,12 +16,18 @@ ShadyObject::ShadyObject(uint32_t size)
 {
 }
 
+__declspec(noinline)
 void ShadyObject::Execute()
 {
 	assert(m_entryPoint);
 
 	void *fp = m_entryPoint;
 	uint32_t esi_store;
+
+	// XXX: just storing esi might not be enough
+	// the issue was when this was optimised the function was inlined and esi
+	// was expected to not change
+	// maybe make this whole function __declspec(noline) instead
 
 	__asm
 	{
