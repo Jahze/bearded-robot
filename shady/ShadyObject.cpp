@@ -23,6 +23,11 @@ void ShadyObject::Execute()
 	void *fp = m_entryPoint;
 	uint32_t esi_store;
 
+	// XXX: just storing esi might not be enough
+	// the issue was when this was optimised the function was inlined and esi
+	// was expected to not change
+	// maybe make this whole function __declspec(noline) instead
+
 	__asm
 	{
 		mov [esi_store], esi

@@ -847,7 +847,7 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessFunctionCall(Layout::Stack
 
 		return { out, returnType };
 	}
-	else if (name->m_data == "dot")
+	else if (name->m_data == "dot3")
 	{
 		assert(function->m_nodes.size() == 3);
 
@@ -863,7 +863,7 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessFunctionCall(Layout::Stack
 
 		SymbolLocation out = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Float));
 
-		GenerateDot(lhs, rhs, out);
+		GenerateDot3(lhs, rhs, out);
 
 		return { out, BuiltinType::Get(BuiltinTypeType::Float) };
 	}
@@ -929,7 +929,7 @@ CodeGenerator::ValueDescription CodeGenerator::ResolveRegisterPart(Layout::Stack
 
 		if (iter == m_constantVectors.end())
 		{
-			constantLocation = m_layout.PlaceGlobalFloatInMemory();
+			constantLocation = m_layout.PlaceGlobalVectorInMemory();
 			m_constantVectors[constant] = constantLocation;
 		}
 		else
@@ -1163,7 +1163,7 @@ void CodeGenerator::GenerateLength(ValueDescription value, SymbolLocation out)
 		TranslateValue({ out, value.type }));
 }
 
-void CodeGenerator::GenerateDot(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
+void CodeGenerator::GenerateDot3(ValueDescription lhs, ValueDescription rhs, SymbolLocation out)
 {
 	assert(lhs.type->GetType() == BuiltinTypeType::Vec4);
 	assert(rhs.type->GetType() == BuiltinTypeType::Vec4);

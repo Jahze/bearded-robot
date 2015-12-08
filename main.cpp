@@ -66,7 +66,7 @@ namespace
 			"	diffuse[1] = 1.0;\n"
 			"	diffuse[2] = 1.0;\n"
 			"\n"
-			"	float dp = dot(g_world_normal, directionToLight);\n"
+			"	float dp = dot3(g_world_normal, directionToLight);\n"
 			"	float clamped = clamp(dp, 0.0, dp);\n"
 			"\n"
 			"	float k = 0.1;\n"

@@ -11,7 +11,7 @@ namespace
 	{{
 		{ "normalize", BuiltinTypeType::Vec4, { BuiltinTypeType::Vec4 } },
 		{ "length", BuiltinTypeType::Float, { BuiltinTypeType::Vec4 } },
-		{ "dot", BuiltinTypeType::Float, { BuiltinTypeType::Vec4, BuiltinTypeType::Vec4 } },
+		{ "dot3", BuiltinTypeType::Float, { BuiltinTypeType::Vec4, BuiltinTypeType::Vec4 } },
 		{ "clamp", BuiltinTypeType::Float, { BuiltinTypeType::Float, BuiltinTypeType::Float, BuiltinTypeType::Float } },
 		// TODO : clamp vector could have a special implementation using cmpps
 	}};
