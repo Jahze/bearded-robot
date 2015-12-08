@@ -119,6 +119,11 @@ void ShadyObject::WriteFunctions(const std::unordered_map<std::string, FunctionC
 	}
 
 	{
+		// Make sure the stack isn't too close to the generated code otherwise it can
+		// cause slowdowns due to invalidation of CPU instruction cache when writing
+		// to stack.
+		m_cursor += 0x100;
+
 		// Update trampoline to set stack ptr
 		void * stackStart = ObjectCursor();
 		std::size_t space;
