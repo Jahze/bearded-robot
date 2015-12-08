@@ -74,8 +74,11 @@ void Layout::PlaceGlobal(Symbol * symbol)
 {
 	BuiltinType * type = symbol->GetType();
 
-	if (! StandardPlacement(type, symbol->GetLocation(), ScopeType::Global))
-		throw LayoutException("Cannot layout variable '" + symbol->GetName() + "' of type '" + type->GetName() + "'");
+	//if (! StandardPlacement(type, symbol->GetLocation(), ScopeType::Global))
+	//	throw LayoutException("Cannot layout variable '" + symbol->GetName() + "' of type '" + type->GetName() + "'");
+
+	// XXX : always putting them in memory is faster -- because of register contention or something else?
+	PlaceGlobalInMemory(symbol);
 }
 
 void Layout::PlaceGlobalInMemory(Symbol * symbol)

@@ -12,10 +12,7 @@ public:
 
 	Colour Execute(int x, int y) const;
 
-	void SetLightPosition(const Vector3 & position)
-	{
-		m_lightPosition = position;
-	}
+	void SetLightPosition(const Vector3 & position);
 
 	void SetTriangleContext(const std::array<VertexShaderOutput, 3> * triangle);
 

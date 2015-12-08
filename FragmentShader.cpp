@@ -13,11 +13,6 @@ namespace
 	{
 		return std::min<Real>(std::max<Real>(value, min), max);
 	}
-
-	const std::string g_light0_position("g_light0_position");
-	const std::string g_world_position("g_world_position");
-	const std::string g_world_normal("g_world_normal");
-	const std::string g_colour("g_colour");
 }
 
 FragmentShader::FragmentShader(ShadyObject * shader)
@@ -50,6 +45,12 @@ Colour FragmentShader::Execute(int x, int y) const
 	return Colour::White;
 }
 
+void FragmentShader::SetLightPosition(const Vector3 & position)
+{
+	m_lightPosition = position;
+	m_g_light0_position.Write(m_lightPosition);
+}
+
 void FragmentShader::SetTriangleContext(const std::array<VertexShaderOutput, 3> * triangle)
 {
 	m_triangleContext = triangle;
@@ -66,23 +67,11 @@ namespace
 	Vector3 InterpolateVector(const Vector3 & vector0, const Vector3 & vector1, const Vector3 & vector2,
 		Real a1, Real a2, Real a3, Real total)
 	{
-		Vector3 out;
-
-		out.x = vector0.x * a1 +
-			vector1.x * a2 +
-			vector2.x * a3;
-
-		out.y =
-			vector0.y * a1 +
-			vector1.y * a2 +
-			vector2.y * a3;
-
-		out.z =
-			vector0.z * a1 +
-			vector1.z * a2 +
-			vector2.z * a3;
-
-		return out / total;
+		return{
+			(vector0.x * a1 + vector1.x * a2 + vector2.x * a3) / total,
+			(vector0.y * a1 + vector1.y * a2 + vector2.y * a3) / total,
+			(vector0.z * a1 + vector1.z * a2 + vector2.z * a3) / total,
+		};
 	}
 }
 
