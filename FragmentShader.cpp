@@ -59,7 +59,8 @@ Colour FragmentShader::Execute(int x, int y) const
 
 		m_g_colour.Read(c);
 
-		return { c.x, c.y, c.z };
+		return Colour::White;
+		//return { c.x, c.y, c.z };
 	}
 
 	return Colour::White;

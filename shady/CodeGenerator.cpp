@@ -702,7 +702,7 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessSubscript(Layout::StackLay
 			{
 				SymbolLocation sp;
 				sp.m_type = SymbolLocation::Register;
-				sp.m_data = Register::Esi;
+				sp.m_data = Register::Ebp;
 				GenerateWrite(addressValue, lhs.location.m_data);
 				GenerateInstruction(false, instruction::Add, addressValue, { sp, addressValue.type }, addressLocation);
 			}
@@ -758,7 +758,7 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessSubscript(Layout::StackLay
 			{
 				SymbolLocation sp;
 				sp.m_type = SymbolLocation::Register;
-				sp.m_data = Register::Esi;
+				sp.m_data = Register::Ebp;
 				GenerateWrite(addressValue, lhs.location.m_data);
 				GenerateInstruction(false, instruction::Add, addressValue, { sp, addressValue.type }, addressLocation);
 			}
@@ -892,6 +892,18 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessFunctionCall(Layout::Stack
 
 		return { out, BuiltinType::Get(BuiltinTypeType::Float) };
 	}
+	else if (name->m_data == "nop")
+	{
+		assert(function->m_nodes.size() == 2);
+
+		SyntaxNode * bytes = function->m_nodes[1].get();
+
+		assert(bytes->m_type == SyntaxNodeType::Literal);
+
+		GenerateNop(atoi(bytes->m_data.c_str()));
+
+		return { SymbolLocation(), BuiltinType::Get(BuiltinTypeType::Void) };
+	}
 
 	throw std::runtime_error("function call not implemented");
 }
@@ -907,7 +919,7 @@ CodeGenerator::ValueDescription CodeGenerator::ResolveRegisterPart(Layout::Stack
 		valueLocation.m_data = value.location.m_data;
 
 		SymbolLocation shift;
-		SymbolLocation::LocalMemory;
+		shift.m_type = SymbolLocation::LocalMemory;
 		shift.m_data = value.location.m_shift;
 
 		// TODO : reuse value register location for out if temporary
@@ -1063,7 +1075,7 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 		if (target.location.m_type == SymbolLocation::RegisterPart)
 		{
 			SymbolLocation shift;
-			SymbolLocation::LocalMemory;
+			shift.m_type = SymbolLocation::LocalMemory;
 			shift.m_data = target.location.m_shift;
 
 			CodeBytes({ 0x66, 0x0F, 0xF2 });
@@ -1081,6 +1093,27 @@ void CodeGenerator::GenerateWrite(const ValueDescription & target, const ValueDe
 				TranslateValue({ out, type }));
 		}
 	}
+}
+
+void CodeGenerator::GenerateNop(uint32_t bytes)
+{
+	assert(bytes > 0 && bytes < 10);
+
+	const std::vector<uint8_t> nops[] =
+	{
+		{ 0x90 },
+		{ 0x66, 0x90 },
+		{ 0x0F, 0x1F, 0x00 },
+		{ 0x0F, 0x1F, 0x40, 0x00 },
+		{ 0x0F, 0x1F, 0x44, 0x00, 0x00 },
+		{ 0x66, 0x0F, 0x1F, 0x44, 0x00, 0x00 },
+		{ 0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00 },
+		{ 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
+		{ 0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
+	};
+
+	CodeBytes(nops[bytes-1]);
+	DebugAsm("nop $", bytes);
 }
 
 void CodeGenerator::GenerateNormalize(ValueDescription value, SymbolLocation out)
@@ -1188,7 +1221,7 @@ void CodeGenerator::GenerateMax(ValueDescription lhs, ValueDescription rhs, Symb
 	//CodeBytes({ 0x0F, 0x1F, 0x44, 0x00, 0x00 });
 
 	// this one does it by itself
-	CodeBytes({ 0x66, 0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00 });
+	//CodeBytes({ 0x66, 0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00 });
 
 	std::unique_ptr<Layout::TemporaryRegister> reg = m_layout.GetFreeXmmRegister();
 	GenerateWrite({reg->Location(), rhs.type}, rhs);
@@ -1724,7 +1757,7 @@ std::vector<uint8_t> CodeGenerator::ConstructModRM(const SymbolLocation & target
 	else if (target.m_type == SymbolLocation::LocalMemory)
 	{
 		uint8_t * disp = (uint8_t*)&target.m_data;
-		return { MakeModRM(0x2, source.m_data, 0x6), disp[0], disp[1], disp[2], disp[3] };
+		return { MakeModRM(0x2, source.m_data, 0x5), disp[0], disp[1], disp[2], disp[3] };
 	}
 	else if (target.m_type == SymbolLocation::IndirectRegister)
 	{
@@ -1739,7 +1772,7 @@ std::vector<uint8_t> CodeGenerator::ConstructModRM(const SymbolLocation & target
 	else if (source.m_type == SymbolLocation::LocalMemory)
 	{
 		uint8_t * disp = (uint8_t*)&source.m_data;
-		return { MakeModRM(0x2, target.m_data, 0x6), disp[0], disp[1], disp[2], disp[3] };
+		return { MakeModRM(0x2, target.m_data, 0x5), disp[0], disp[1], disp[2], disp[3] };
 	}
 	else if (source.m_type == SymbolLocation::IndirectRegister)
 	{
@@ -1762,7 +1795,7 @@ std::vector<uint8_t> CodeGenerator::ConstructModRM(const SymbolLocation & target
 	else if (target.m_type == SymbolLocation::LocalMemory)
 	{
 		uint8_t * disp = (uint8_t*)&target.m_data;
-		return { MakeModRM(0x2, r, 0x6), disp[0], disp[1], disp[2], disp[3] };
+		return { MakeModRM(0x2, r, 0x5), disp[0], disp[1], disp[2], disp[3] };
 	}
 	else if (target.m_type == SymbolLocation::IndirectRegister)
 	{

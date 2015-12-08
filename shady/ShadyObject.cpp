@@ -16,24 +16,33 @@ ShadyObject::ShadyObject(uint32_t size)
 {
 }
 
+namespace
+{
+	// global because we mess with ebp
+	void *g_fp;
+	uint32_t g_ebp_store;
+}
+
 __declspec(noinline)
 void ShadyObject::Execute()
 {
 	assert(m_entryPoint);
 
-	void *fp = m_entryPoint;
-	uint32_t esi_store;
+	g_fp = m_entryPoint;
 
 	// XXX: just storing esi might not be enough
 	// the issue was when this was optimised the function was inlined and esi
 	// was expected to not change
 	// maybe make this whole function __declspec(noline) instead
 
+	uint32_t sp_ = reinterpret_cast<uint32_t>(m_stackStart);
+
 	__asm
 	{
-		mov [esi_store], esi
-		call [fp]
-		mov esi, [esi_store]
+		mov [g_ebp_store], ebp
+		;mov ebp, [sp_]
+		call [g_fp]
+		mov ebp, [g_ebp_store]
 	}
 }
 
@@ -126,12 +135,12 @@ void ShadyObject::WriteFunctions(const std::unordered_map<std::string, FunctionC
 
 	{
 		// Update trampoline to set stack ptr
-		void * stackStart = ObjectCursor();
+		m_stackStart = ObjectCursor();
+
 		std::size_t space;
+		std::align(16, 0x1000, m_stackStart, space);
 
-		std::align(16, 0x1000, stackStart, space);
-
-		std::memcpy(m_stackPointerSet, &stackStart, sizeof(void*));
+		std::memcpy(m_stackPointerSet, &m_stackStart, sizeof(void*));
 	}
 
 	auto iter = m_exports.find("main");
@@ -191,14 +200,24 @@ uint32_t ShadyObject::WriteXmmVectorReg(uint32_t reg)
 
 void ShadyObject::CallTrampoline()
 {
-	uint32_t address = reinterpret_cast<uint32_t>(m_globalTrampoline);
-	uint32_t cursor  = reinterpret_cast<uint32_t>(ObjectCursor()) + 5; // +5 == sizeof this instruction
-	uint32_t offset = address - cursor;
-	uint8_t * disp = (uint8_t*)&offset;
+	//uint32_t address = reinterpret_cast<uint32_t>(m_globalTrampoline);
+	//uint32_t cursor  = reinterpret_cast<uint32_t>(ObjectCursor()) + 5; // +5 == sizeof this instruction
+	//uint32_t offset = address - cursor;
+	//uint8_t * disp = (uint8_t*)&offset;
+	//
+	//std::array<uint8_t, 5> bytes = { 0xE8, disp[0], disp[1], disp[2], disp[3] };
+	//
+	//std::memcpy(ObjectCursor(), &bytes[0], bytes.size());
+	//
+	//m_cursor += bytes.size();
 
-	std::array<uint8_t, 5> bytes = { 0xE8, disp[0], disp[1], disp[2], disp[3] };
+	std::array<uint8_t, 5> bytes =
+	{
+		// mov ebp, imm32
+		0xBD, 0x00, 0x00, 0x00, 0x00,
+	};
 
 	std::memcpy(ObjectCursor(), &bytes[0], bytes.size());
-
+	m_stackPointerSet = ((char*)ObjectCursor()) + 1;
 	m_cursor += bytes.size();
 }

@@ -90,6 +90,7 @@ private:
 	void GenerateWrite(const ValueDescription & target, uint32_t literal);
 	void GenerateWrite(const ValueDescription & target, const ValueDescription & source);
 
+	void GenerateNop(uint32_t bytes);
 	void GenerateNormalize(ValueDescription value, SymbolLocation out);
 	void GenerateLength(ValueDescription value, SymbolLocation out);
 	void GenerateMax(ValueDescription lhs, ValueDescription rhs, SymbolLocation out);

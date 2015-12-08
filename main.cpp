@@ -1,6 +1,7 @@
 #include <array>
 #include <chrono>
 #include <ctime>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <Windows.h>
@@ -48,7 +49,7 @@ namespace
 
 	std::unique_ptr<ShadyObject> CreateFragmentShader()
 	{
-		std::string source =
+		std::string old_source =
 			"export void main()\n"
 			"{\n"
 			"	vec4 directionToLight = g_light0_position - g_world_position;\n"
@@ -67,6 +68,7 @@ namespace
 			"	diffuse[2] = 1.0;\n"
 			"\n"
 			"	float dp = dot3(g_world_normal, directionToLight);\n"
+			"	nop(8);\n"
 			"	float clamped = max(dp, 0.0);\n"
 			//"	float clamped = clamp(dp, 0.0, dp);\n"
 			//"	float clamped = dp;\n"
@@ -86,6 +88,10 @@ namespace
 			"\n"
 			"	return;\n"
 			"}\n";
+
+		std::ifstream shader("fragment.shader");
+		std::string source{std::istreambuf_iterator<char>(shader),
+			std::istreambuf_iterator<char>()};
 
 		std::string error;
 		ShaderCompiler compiler;
@@ -296,6 +302,10 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			else if (wParam == 'V')
 			{
 				g_camera.Reset();
+			}
+			else  if (wParam == 'U')
+			{
+				g_fragmentShader = CreateFragmentShader();
 			}
 			break;
 

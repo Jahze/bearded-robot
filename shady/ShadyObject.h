@@ -161,6 +161,7 @@ private:
 	void * m_entryPoint = nullptr;
 	void * m_globalTrampoline = nullptr;
 	void * m_stackPointerSet = nullptr;
+	void * m_stackStart = nullptr;
 	ScopedAlloc m_object;
 	uint32_t m_cursor = 0;
 };
