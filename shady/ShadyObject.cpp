@@ -113,6 +113,12 @@ void ShadyObject::WriteFunctions(const std::unordered_map<std::string, FunctionC
 {
 	for (auto && function : functions)
 	{
+		// Align function start to 0x40
+		if (m_cursor % 64 != 0)
+		{
+			m_cursor += (64 - (m_cursor % 64));
+		}
+
 		if (function.second.m_isExport)
 			m_exports[function.first] = ObjectCursor();
 
@@ -127,6 +133,7 @@ void ShadyObject::WriteFunctions(const std::unordered_map<std::string, FunctionC
 		// Make sure the stack isn't too close to the generated code otherwise it can
 		// cause slowdowns due to invalidation of CPU instruction cache when writing
 		// to stack.
+		// TODO : make this a reasonable number that is checked
 		m_cursor += 0x100;
 
 		// Update trampoline to set stack ptr
