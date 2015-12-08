@@ -1,6 +1,7 @@
 #include <array>
 #include <chrono>
 #include <ctime>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <Windows.h>
@@ -24,17 +25,10 @@ namespace
 {
 	std::unique_ptr<ShadyObject> CreateVertexShader()
 	{
-		std::string source =
-			"export void main()\n"
-			"{\n"
-			"	g_projected_position = g_projection * g_view * g_model * g_position;\n"
-			"	g_projected_position[0] /= g_projected_position[3];\n"
-			"	g_projected_position[1] /= g_projected_position[3];\n"
-			"	g_projected_position[2] /= g_projected_position[3];\n"
-			"	g_world_position = g_model * g_position;\n"
-			"	g_world_normal = normalize(g_model * g_normal);\n"
-			"	return;\n"
-			"}\n";
+		std::ifstream file("vertex.shader");
+
+		std::string source{std::istreambuf_iterator<char>(file),
+			std::istreambuf_iterator<char>()};
 
 		std::string error;
 		ShaderCompiler compiler;
@@ -48,38 +42,10 @@ namespace
 
 	std::unique_ptr<ShadyObject> CreateFragmentShader()
 	{
-		std::string source =
-			"export void main()\n"
-			"{\n"
-			"	vec4 directionToLight = g_light0_position - g_world_position;\n"
-			"	float lightDistance = length(directionToLight);\n"
-			"\n"
-			"	directionToLight = normalize(directionToLight);\n"
-			"\n"
-			"	vec4 ambient;\n"
-			"	ambient[0] = 0.2;\n"
-			"	ambient[1] = 0.2;\n"
-			"	ambient[2] = 0.2;\n"
-			"\n"
-			"	vec4 diffuse;\n"
-			"	diffuse[0] = 1.0;\n"
-			"	diffuse[1] = 1.0;\n"
-			"	diffuse[2] = 1.0;\n"
-			"\n"
-			"	float dp = dot3(g_world_normal, directionToLight);\n"
-			"	float clamped = clamp(dp, 0.0, dp);\n"
-			"\n"
-			"	float k = 0.1;\n"
-			"	float attenuation = 1.0 / (lightDistance * k);\n"
-			"\n"
-			"	vec4 colour = ambient + (diffuse * clamped * attenuation);\n"
-			"\n"
-			"	g_colour[0] = clamp(colour[0], 0.0, 1.0);\n"
-			"	g_colour[1] = clamp(colour[1], 0.0, 1.0);\n"
-			"	g_colour[2] = clamp(colour[2], 0.0, 1.0);\n"
-			"\n"
-			"	return;\n"
-			"}\n";
+		std::ifstream file("fragment.shader");
+
+		std::string source{std::istreambuf_iterator<char>(file),
+			std::istreambuf_iterator<char>()};
 
 		std::string error;
 		ShaderCompiler compiler;
@@ -291,6 +257,11 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				g_camera.Reset();
 			}
+			else if (wParam == 'U')
+			{
+				g_vertexShader = CreateVertexShader();
+				g_fragmentShader = CreateFragmentShader();
+			}
 			break;
 
 		case WM_DESTROY:
@@ -303,7 +274,7 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, int nCmdShow)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, int nCmdShow)
 {
 	g_vertexShader = CreateVertexShader();
 	g_fragmentShader = CreateFragmentShader();
