@@ -15,6 +15,8 @@
 
 namespace
 {
+	const Register kStackRegister = Register::Esi;
+
 	class JumpPatcher
 	{
 	public:
@@ -702,7 +704,7 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessSubscript(Layout::StackLay
 			{
 				SymbolLocation sp;
 				sp.m_type = SymbolLocation::Register;
-				sp.m_data = Register::Ebp;
+				sp.m_data = kStackRegister;
 				GenerateWrite(addressValue, lhs.location.m_data);
 				GenerateInstruction(false, instruction::Add, addressValue, { sp, addressValue.type }, addressLocation);
 			}
@@ -758,7 +760,7 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessSubscript(Layout::StackLay
 			{
 				SymbolLocation sp;
 				sp.m_type = SymbolLocation::Register;
-				sp.m_data = Register::Ebp;
+				sp.m_data = kStackRegister;
 				GenerateWrite(addressValue, lhs.location.m_data);
 				GenerateInstruction(false, instruction::Add, addressValue, { sp, addressValue.type }, addressLocation);
 			}
@@ -1757,7 +1759,7 @@ std::vector<uint8_t> CodeGenerator::ConstructModRM(const SymbolLocation & target
 	else if (target.m_type == SymbolLocation::LocalMemory)
 	{
 		uint8_t * disp = (uint8_t*)&target.m_data;
-		return { MakeModRM(0x2, source.m_data, 0x5), disp[0], disp[1], disp[2], disp[3] };
+		return { MakeModRM(0x2, source.m_data, kStackRegister), disp[0], disp[1], disp[2], disp[3] };
 	}
 	else if (target.m_type == SymbolLocation::IndirectRegister)
 	{
@@ -1772,7 +1774,7 @@ std::vector<uint8_t> CodeGenerator::ConstructModRM(const SymbolLocation & target
 	else if (source.m_type == SymbolLocation::LocalMemory)
 	{
 		uint8_t * disp = (uint8_t*)&source.m_data;
-		return { MakeModRM(0x2, target.m_data, 0x5), disp[0], disp[1], disp[2], disp[3] };
+		return { MakeModRM(0x2, target.m_data, kStackRegister), disp[0], disp[1], disp[2], disp[3] };
 	}
 	else if (source.m_type == SymbolLocation::IndirectRegister)
 	{
@@ -1795,7 +1797,7 @@ std::vector<uint8_t> CodeGenerator::ConstructModRM(const SymbolLocation & target
 	else if (target.m_type == SymbolLocation::LocalMemory)
 	{
 		uint8_t * disp = (uint8_t*)&target.m_data;
-		return { MakeModRM(0x2, r, 0x5), disp[0], disp[1], disp[2], disp[3] };
+		return { MakeModRM(0x2, r, kStackRegister), disp[0], disp[1], disp[2], disp[3] };
 	}
 	else if (target.m_type == SymbolLocation::IndirectRegister)
 	{

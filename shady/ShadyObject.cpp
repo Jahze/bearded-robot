@@ -1,6 +1,11 @@
 #include <Windows.h>
 #include "ShadyObject.h"
 
+namespace
+{
+	const Register kStackRegister = Register::Esi;
+}
+
 ScopedAlloc::ScopedAlloc(uint32_t size)
 {
 	m_pointer = ::VirtualAlloc(nullptr, static_cast<SIZE_T>(size), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
@@ -23,6 +28,19 @@ namespace
 	uint32_t g_ebp_store;
 }
 
+#define NOP2 _emit 0x66 __asm _emit 0x90
+
+#define NOP9 _emit 0x66 \
+		__asm _emit 0x0F \
+		__asm _emit 0x1F \
+		__asm _emit 0x84 \
+		__asm _emit 0x00 \
+		__asm _emit 0x00 \
+		__asm _emit 0x00 \
+		__asm _emit 0x00 \
+		__asm _emit 0x00
+
+
 __declspec(noinline)
 void ShadyObject::Execute()
 {
@@ -37,12 +55,16 @@ void ShadyObject::Execute()
 
 	uint32_t sp_ = reinterpret_cast<uint32_t>(m_stackStart);
 
+	//__asm
+	//{
+	//	mov esi, [sp_]
+	//	call [g_fp]
+	//	mov esi, [g_ebp_store]
+	//}
+
 	__asm
 	{
-		mov [g_ebp_store], ebp
-		;mov ebp, [sp_]
 		call [g_fp]
-		mov ebp, [g_ebp_store]
 	}
 }
 
@@ -108,8 +130,8 @@ void ShadyObject::NoteGlobals(const SymbolTable & symbolTable)
 
 	std::array<uint8_t, 6> bytes =
 	{
-		// mov esi, imm32
-		0xBE, 0x00, 0x00, 0x00, 0x00,
+		// mov stack_reg, imm32
+		0xB8 + kStackRegister, 0x00, 0x00, 0x00, 0x00,
 		// ret
 		0xC3
 	};
@@ -121,6 +143,11 @@ void ShadyObject::NoteGlobals(const SymbolTable & symbolTable)
 
 void ShadyObject::WriteFunctions(const std::unordered_map<std::string, FunctionCode> & functions)
 {
+	if (m_cursor % 16 != 0)
+	{
+		m_cursor += (16 - (m_cursor % 16));
+	}
+
 	for (auto && function : functions)
 	{
 		if (function.second.m_isExport)
@@ -134,6 +161,7 @@ void ShadyObject::WriteFunctions(const std::unordered_map<std::string, FunctionC
 	}
 
 	{
+		m_cursor += 0x100;
 		// Update trampoline to set stack ptr
 		m_stackStart = ObjectCursor();
 
@@ -213,8 +241,8 @@ void ShadyObject::CallTrampoline()
 
 	std::array<uint8_t, 5> bytes =
 	{
-		// mov ebp, imm32
-		0xBD, 0x00, 0x00, 0x00, 0x00,
+		// mov stack_reg, imm32
+		0xB8 + kStackRegister, 0x00, 0x00, 0x00, 0x00,
 	};
 
 	std::memcpy(ObjectCursor(), &bytes[0], bytes.size());
