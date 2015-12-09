@@ -135,8 +135,9 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			const unsigned width = pFrame->GetWidth();
 			const unsigned height = pFrame->GetHeight();
 
-			// cube corners look a bit strange when centred
-			Projection projection(45.0f, 90.0f, 1.0f, 1000.0f, width, height);
+			// cube is clipped too early or something
+			// camera at z=-35 face at z=-45 and it is clipped
+			Projection projection(90.0f, 1.0f, 1000.0f, width, height);
 
 			Matrix4 modelTransform =
 				Matrix4::Translation({ 0.0, 0.0, -50.0 });
@@ -155,10 +156,9 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			vertexShader.SetViewTransform(g_camera.GetTransform());
 
 			Vector3 light{ 0.0, 0.0, 0.0 };
-			//light = g_camera.GetTransform() * light;
 			rasta.SetLightPosition(light);
 
-			geometry::Cube cube(25.0);
+			geometry::Cube cube(10.0);
 			const auto end = cube.triangles.end();
 
 			for (auto iter = cube.triangles.begin(); iter != end; ++iter)

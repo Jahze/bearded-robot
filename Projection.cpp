@@ -1,9 +1,8 @@
 #include <cmath>
 #include "Projection.h"
 
-Projection::Projection(Real fovx, Real fovy, Real znear, Real zfar, unsigned width, unsigned height)
-	: m_fovx(fovx)
-	, m_fovy(fovy)
+Projection::Projection(Real fov, Real znear, Real zfar, unsigned width, unsigned height)
+	: m_fov(fov)
 	, m_znear(znear)
 	, m_zfar(zfar)
 	, m_width(width)
@@ -12,16 +11,17 @@ Projection::Projection(Real fovx, Real fovy, Real znear, Real zfar, unsigned wid
 
 Matrix4 Projection::GetProjectionMatrix() const
 {
-	Real fovxCoeff = atan((m_fovx * DEG_TO_RAD) / 2.0f);
-	Real fovyCoeff = atan((m_fovy * DEG_TO_RAD) / 2.0f);
+	Real aspect = (Real)m_width / (Real)m_height;
+	Real scalex = 1 / tan(m_fov * DEG_TO_RAD * 0.5f);
+	Real scaley = scalex * aspect;
 	Real zClip1 = -((m_zfar + m_znear) / (m_zfar - m_znear));
 	Real zClip2 = -((2 * m_znear * m_zfar) / (m_zfar - m_znear));
 
 	return {{{
-		{ fovxCoeff, 0.0, 0.0, 0.0 },
-		{ 0.0, fovyCoeff, 0.0, 0.0 },
-		{ 0.0, 0.0, zClip1, zClip2 },
-		{ 0.0, 0.0, -1.0, 0.0 }
+		{ scalex, 0.0,    0.0,    0.0    },
+		{ 0.0,    scaley, 0.0,    0.0    },
+		{ 0.0,    0.0,    zClip1, zClip2 },
+		{ 0.0,    0.0,    -1.0,   0.0    }
 	}}};
 }
 

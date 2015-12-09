@@ -7,7 +7,7 @@
 class Projection
 {
 public:
-	Projection(Real fovx, Real fovy, Real znear, Real zfar, unsigned width, unsigned height);
+	Projection(Real fov, Real znear, Real zfar, unsigned width, unsigned height);
 
 	Matrix4 GetProjectionMatrix() const;
 
@@ -15,8 +15,7 @@ public:
 	Real ToScreenY(Real y) const;
 
 private:
-	Real m_fovx;
-	Real m_fovy;
+	Real m_fov;
 	Real m_znear;
 	Real m_zfar;
 	unsigned m_width;
