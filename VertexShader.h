@@ -2,6 +2,7 @@
 
 #include "Colour.h"
 #include "Matrix.h"
+#include "Point.h"
 #include "ShadyObject.h"
 
 class Camera;
@@ -12,8 +13,7 @@ struct VertexShaderOutput
 	Vector4 m_projected;
 	Vector3 m_position;
 	Vector3 m_normal;
-	Real m_screenX;
-	Real m_screenY;
+	Point m_screen;
 };
 
 class VertexShader

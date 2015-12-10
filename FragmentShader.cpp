@@ -56,9 +56,9 @@ void FragmentShader::SetTriangleContext(const std::array<VertexShaderOutput, 3> 
 	m_triangleContext = triangle;
 
 	m_totalArea = AreaOfTriangle(
-		(*m_triangleContext)[0].m_screenX, (*m_triangleContext)[0].m_screenY,
-		(*m_triangleContext)[1].m_screenX, (*m_triangleContext)[1].m_screenY,
-		(*m_triangleContext)[2].m_screenX, (*m_triangleContext)[2].m_screenY
+		(*m_triangleContext)[0].m_screen.x, (*m_triangleContext)[0].m_screen.y,
+		(*m_triangleContext)[1].m_screen.x, (*m_triangleContext)[1].m_screen.y,
+		(*m_triangleContext)[2].m_screen.x, (*m_triangleContext)[2].m_screen.y
 	);
 }
 
@@ -85,20 +85,20 @@ VertexShaderOutput FragmentShader::InterpolateForContext(int x, int y) const
 	const VertexShaderOutput & triangle2 = (*m_triangleContext)[2];
 
 	Real subArea1 = AreaOfTriangle(
-		triangle1.m_screenX, triangle1.m_screenY,
-		triangle2.m_screenX, triangle2.m_screenY,
+		triangle1.m_screen.x, triangle1.m_screen.y,
+		triangle2.m_screen.x, triangle2.m_screen.y,
 		x, y
 	);
 
 	Real subArea2 = AreaOfTriangle(
-		triangle0.m_screenX, triangle0.m_screenY,
-		triangle2.m_screenX, triangle2.m_screenY,
+		triangle0.m_screen.x, triangle0.m_screen.y,
+		triangle2.m_screen.x, triangle2.m_screen.y,
 		x, y
 	);
 
 	Real subArea3 = AreaOfTriangle(
-		triangle0.m_screenX, triangle0.m_screenY,
-		triangle1.m_screenX, triangle1.m_screenY,
+		triangle0.m_screen.x, triangle0.m_screen.y,
+		triangle1.m_screen.x, triangle1.m_screen.y,
 		x, y
 	);
 

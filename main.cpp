@@ -190,8 +190,8 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					VertexShaderOutput normalExtent_v = vertexShader.Execute(normalExtent);
 
 					rasta.DrawLine(
-						centre_v.m_screenX, centre_v.m_screenY,
-						normalExtent_v.m_screenX, normalExtent_v.m_screenY,
+						centre_v.m_screen.x, centre_v.m_screen.y,
+						normalExtent_v.m_screen.x, normalExtent_v.m_screen.y,
 						Colour::Red);
 				}
 			}

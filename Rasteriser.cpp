@@ -1,5 +1,6 @@
 #include <cassert>
 #include <memory>
+#include "ClipPlane.h"
 #include "Colour.h"
 #include "FrameBuffer.h"
 #include "Rasteriser.h"
@@ -25,9 +26,9 @@ void Rasteriser::DrawTriangle(const std::array<VertexShaderOutput, 3> & triangle
 	struct Point { int x; int y; };
 
 	std::array<Point, 3> points = { {
-		{ triangle[0].m_screenX, triangle[0].m_screenY },
-		{ triangle[1].m_screenX, triangle[1].m_screenY },
-		{ triangle[2].m_screenX, triangle[2].m_screenY }
+		{ triangle[0].m_screen.x, triangle[0].m_screen.y },
+		{ triangle[1].m_screen.x, triangle[1].m_screen.y },
+		{ triangle[2].m_screen.x, triangle[2].m_screen.y }
 	} };
 
 	std::sort(std::begin(points), std::end(points),
@@ -86,18 +87,18 @@ void Rasteriser::DrawTriangle(const std::array<VertexShaderOutput, 3> & triangle
 void Rasteriser::DrawWireFrameTriangle(const std::array<VertexShaderOutput, 3> & triangle)
 {
 	DrawLine(
-		triangle[0].m_screenX, triangle[0].m_screenY,
-		triangle[1].m_screenX, triangle[1].m_screenY,
+		triangle[0].m_screen.x, triangle[0].m_screen.y,
+		triangle[1].m_screen.x, triangle[1].m_screen.y,
 		Colour::White);
 
 	DrawLine(
-		triangle[1].m_screenX, triangle[1].m_screenY,
-		triangle[2].m_screenX, triangle[2].m_screenY,
+		triangle[1].m_screen.x, triangle[1].m_screen.y,
+		triangle[2].m_screen.x, triangle[2].m_screen.y,
 		Colour::White);
 
 	DrawLine(
-		triangle[2].m_screenX, triangle[2].m_screenY,
-		triangle[0].m_screenX, triangle[0].m_screenY,
+		triangle[2].m_screen.x, triangle[2].m_screen.y,
+		triangle[0].m_screen.x, triangle[0].m_screen.y,
 		Colour::White);
 }
 
@@ -209,21 +210,67 @@ void Rasteriser::DrawLine(int x1, int y1, int x2, int y2, const Colour & colour)
 
 bool Rasteriser::ShouldCull(const std::array<VertexShaderOutput, 3> & triangle)
 {
-	const unsigned width = m_pFrame->GetWidth();
-	const unsigned height = m_pFrame->GetHeight();
+	const Real width = m_pFrame->GetWidth();
+	const Real height = m_pFrame->GetHeight();
 
-	// TODO: generate new triangle (clipping) when the part of it is in the view space
+	bool shouldClip = false;
+
 	for (auto && v : triangle)
 	{
-		if (v.m_screenX < 0 || v.m_screenX > width)
-			return true;
+		if (v.m_screen.x < 0 || v.m_screen.x > width)
+			shouldClip = true;
 
-		if (v.m_screenY < 0 || v.m_screenY > height)
-			return true;
+		if (v.m_screen.y < 0 || v.m_screen.y > height)
+			shouldClip = true;
 
 		if (v.m_projected.z < -1.0 || v.m_projected.z > 1.0)
 			return true;
 	}
 
-	return false;
+	if (! shouldClip)
+		return false;
+
+	std::vector<VertexShaderOutput> points(triangle.begin(), triangle.end());
+
+	ClipPlane top({ 0.0, 0.0 }, { 1.0, 0.0 });
+	ClipPlane bottom({ 0.0, height-0.1f }, { -1.0, 0.0 });
+	ClipPlane left({ 0.0, 0.0 }, { 0.0, -1.0 });
+	ClipPlane right({ width-0.1f, 0.0 }, { 0.0, 1.0 });
+
+	points = top.Clip(points);
+	points = bottom.Clip(points);
+	points = left.Clip(points);
+	points = right.Clip(points);
+
+	if (points.size() < 3)
+	{
+		assert(points.empty());
+		return true;
+	}
+
+	const std::size_t limit = points.size();
+
+	for (std::size_t i = 2; i < limit; ++i)
+	{
+		std::array<VertexShaderOutput, 3> clipped;
+
+		clipped[0] = points[0];
+		clipped[1] = points[i-1];
+		clipped[2] = points[i];
+
+		// TODO: how can we avoid this?
+		// they go to tiny non-zero values sometimes
+		for (auto && v : clipped)
+		{
+			if (v.m_screen.x < 0)
+				v.m_screen.x = 0;
+
+			if (v.m_screen.y < 0)
+				v.m_screen.y = 0;
+		}
+
+		DrawTriangle(clipped);
+	}
+
+	return true;
 }

@@ -45,8 +45,8 @@ VertexShaderOutput VertexShader::Execute(const Vector3 & vertex, const Vector3 &
 		m_g_world_normal.Read(output.m_normal);
 	}
 
-	output.m_screenX = m_projection.ToScreenX(output.m_projected.x);
-	output.m_screenY = m_projection.ToScreenY(output.m_projected.y);
+	output.m_screen.x = m_projection.ToScreenX(output.m_projected.x);
+	output.m_screen.y = m_projection.ToScreenY(output.m_projected.y);
 
 	return output;
 }

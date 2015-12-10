@@ -68,6 +68,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="ClipPlane.h" />
     <ClInclude Include="Colour.h" />
     <ClInclude Include="DoubleBuffer.h" />
     <ClInclude Include="FragmentShader.h" />
@@ -75,6 +76,7 @@
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="InputHandler.h" />
     <ClInclude Include="Matrix.h" />
+    <ClInclude Include="Point.h" />
     <ClInclude Include="Projection.h" />
     <ClInclude Include="Rasteriser.h" />
     <ClInclude Include="ScopedHDC.h" />
@@ -85,6 +87,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="ClipPlane.cpp" />
     <ClCompile Include="Colour.cpp" />
     <ClCompile Include="DoubleBuffer.cpp" />
     <ClCompile Include="FragmentShader.cpp" />
