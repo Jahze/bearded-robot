@@ -871,23 +871,28 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessFunctionCall(Layout::Stack
 	{
 		assert(function->m_nodes.size() == 4);
 
-		ValueDescription value;
-		ValueDescription min;
-		ValueDescription max;
+		BuiltinType *floatType = BuiltinType::Get(BuiltinTypeType::Float);
+
+		SymbolLocation temp;
 
 		{
 			Layout::StackLayout subStack = m_layout.TemporaryLayout();
 
-			value = ProcessExpression(subStack, function->m_nodes[1].get());
-			min = ProcessExpression(subStack, function->m_nodes[2].get());
-			max = ProcessExpression(subStack, function->m_nodes[3].get());
+			ValueDescription value = ProcessExpression(subStack, function->m_nodes[1].get());
+			ValueDescription min = ProcessExpression(subStack, function->m_nodes[2].get());
+			ValueDescription max = ProcessExpression(subStack, function->m_nodes[3].get());
+
+			temp = subStack.PlaceTemporary(floatType);
+
+			GenerateClamp(value, min, max, temp);
 		}
 
-		SymbolLocation out = stack.PlaceTemporary(BuiltinType::Get(BuiltinTypeType::Float));
+		SymbolLocation out = stack.PlaceTemporary(floatType);
 
-		GenerateClamp(value, min, max, out);
+		if (out != temp)
+			GenerateWrite({ out, floatType }, { temp, floatType });
 
-		return { out, BuiltinType::Get(BuiltinTypeType::Float) };
+		return { out, floatType };
 	}
 
 	throw std::runtime_error("function call not implemented");
@@ -1196,30 +1201,20 @@ void CodeGenerator::GenerateClamp(ValueDescription value, ValueDescription min, 
 
 	OperandAssistant assitant(this, out, value.type);
 
-	SymbolLocation temp = out;
-
-	std::unique_ptr<Layout::TemporaryRegister> reg;
-
-	if (out == value.location || out == min.location || out == max.location)
-	{
-		reg = m_layout.GetFreeXmmRegister();
-		temp = reg->Location();
-	}
-
-	GenerateWrite({ temp, value.type }, value);
+	GenerateWrite({ out, value.type }, value);
 
 	CodeBytes({ 0x0F, 0x2F });
-	CodeBytes(ConstructModRM(temp, min.location));
+	CodeBytes(ConstructModRM(out, min.location));
 
 	DebugAsm("comiss $,$",
-		TranslateValue({ temp, value.type }),
+		TranslateValue({ out, value.type }),
 		TranslateValue(min));
 
-	CodeBytes({ 0x7D, 0x00 });
+	CodeBytes({ 0x73, 0x00 });
 
 	JumpPatcher maxTest(&m_currentFunctionCode, -1);
 
-	DebugAsm("jge x");
+	DebugAsm("jae x");
 
 	GenerateWrite({ out, value.type }, min);
 
@@ -1232,17 +1227,17 @@ void CodeGenerator::GenerateClamp(ValueDescription value, ValueDescription min, 
 	maxTest.PatchToHere();
 
 	CodeBytes({ 0x0F, 0x2F });
-	CodeBytes(ConstructModRM(temp, max.location));
+	CodeBytes(ConstructModRM(out, max.location));
 
 	DebugAsm("comiss $,$",
-		TranslateValue({ temp, value.type }),
+		TranslateValue({ out, value.type }),
 		TranslateValue(max));
 
-	CodeBytes({ 0x7E, 0x00 });
+	CodeBytes({ 0x76, 0x00 });
 
 	JumpPatcher isValue(&m_currentFunctionCode, -1);
 
-	DebugAsm("jle x");
+	DebugAsm("jbe x");
 
 	GenerateWrite({ out, value.type }, max);
 
@@ -1254,10 +1249,7 @@ void CodeGenerator::GenerateClamp(ValueDescription value, ValueDescription min, 
 
 	isValue.PatchToHere();
 
-	if (out != value.location)
-	{
-		GenerateWrite({ out, value.type }, value);
-	}
+	GenerateWrite({ out, value.type }, value);
 
 	endClamp.PatchToHere();
 	endClamp2.PatchToHere();
