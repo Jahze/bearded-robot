@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include "Matrix.h"
 #include "Vector.h"
 
 namespace geometry
@@ -51,11 +52,33 @@ public:
 	}
 };
 
-class Cube
+class Object
 {
 public:
-	std::vector<Triangle> triangles;
+	const Matrix4 & GetModelMatrix() const
+	{
+		return m_model;
+	}
 
+	void SetModelMatrix(const Matrix4 & model)
+	{
+		m_model = model;
+	}
+
+	const std::vector<Triangle> & GetTriangles() const
+	{
+		return m_triangles;
+	}
+
+protected:
+	Matrix4 m_model = Matrix4::Identity;
+	std::vector<geometry::Triangle> m_triangles;
+};
+
+class Cube
+	: public Object
+{
+public:
 	Cube(Real size = 1.0)
 	{
 		Triangle faces[] =
@@ -123,7 +146,7 @@ public:
 				face.points[i] = face.points[i] * half;
 		}
 
-		triangles.insert(triangles.begin(), std::begin(faces), std::end(faces));
+		m_triangles.insert(m_triangles.begin(), std::begin(faces), std::end(faces));
 	}
 };
 

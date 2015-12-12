@@ -9,9 +9,8 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
-    <Filter Include="Resource Files">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    <Filter Include="Scenes">
+      <UniqueIdentifier>{bd43a6b6-ec41-4ade-aea3-bf578e1fbebc}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -25,9 +24,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Colour.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="DoubleBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Projection.h">
@@ -66,15 +62,21 @@
     <ClInclude Include="ClipPlane.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Scene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="scenes\SpinningCube.h">
+      <Filter>Scenes</Filter>
+    </ClInclude>
+    <ClInclude Include="scenes\BouncingCube.h">
+      <Filter>Scenes</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FrameBuffer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="DoubleBuffer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Projection.cpp">
@@ -105,6 +107,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ClipPlane.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Matrix.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

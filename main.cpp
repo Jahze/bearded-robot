@@ -7,7 +7,6 @@
 #include <Windows.h>
 
 #include "Camera.h"
-#include "DoubleBuffer.h"
 #include "FrameBuffer.h"
 #include "Geometry.h"
 #include "InputHandler.h"
@@ -15,11 +14,10 @@
 #include "Projection.h"
 #include "Rasteriser.h"
 #include "ScopedHDC.h"
+#include "Scene.h"
 #include "ShaderCompiler.h"
 #include "Vector.h"
 #include "VertexShader.h"
-
-DoubleBuffer *pFrames = 0;
 
 namespace
 {
@@ -57,22 +55,17 @@ namespace
 		return object;
 	}
 
-	Real g_rotation = 0.0;
-
-	std::chrono::steady_clock::time_point g_lastTime = std::chrono::steady_clock::now();
-
-	const Real kRotationPerSec = 50.0;
+	FrameBuffer *g_frame = nullptr;
 
 	Camera g_camera;
 
 	InputHandler g_inputHandler;
 
 	std::unique_ptr<ShadyObject> g_vertexShader;
+	std::unique_ptr<ShadyObject> g_fragmentShader;
+
+	SceneDriver * g_sceneDriver;
 }
-
-// TODO : pass this through correctly
-
-std::unique_ptr<ShadyObject> g_fragmentShader;
 
 void FrameCount(HWND hwnd)
 {
@@ -92,11 +85,87 @@ void FrameCount(HWND hwnd)
 		++count;
 	}
 
-	std::string str = "FPS: " + std::to_string((unsigned long long)lastFps)
-		+ " Rotation: " + std::to_string((int)std::round(g_rotation));
+	std::string str = "FPS: " + std::to_string((unsigned long long)lastFps);
 
 	ScopedHDC hdc(hwnd);
 	TextOut(hdc, 5, 5, str.c_str(), str.length());
+}
+
+void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool paused)
+{
+	if (g_frame == nullptr)
+	{
+		g_frame = new FrameBuffer(hWnd);
+	}
+
+	FrameBuffer *pFrame = g_frame;
+	pFrame->Clear();
+
+	Rasteriser rasta(pFrame, mode, g_fragmentShader.get());
+
+	Vector3 light { 0.0, 0.0, 0.0 };
+	rasta.SetLightPosition(light);
+
+	const unsigned width = pFrame->GetWidth();
+	const unsigned height = pFrame->GetHeight();
+
+	Projection projection(90.0f, 1.0f, 1000.0f, width, height);
+
+	VertexShader vertexShader(projection, g_vertexShader.get());
+
+	g_sceneDriver->Update(paused);
+
+	vertexShader.SetViewTransform(g_camera.GetTransform());
+
+	ObjectIterator iterator = g_sceneDriver->GetObjects();
+
+	while (iterator.HasMore())
+	{
+		geometry::Object * object = iterator.Next();
+
+		vertexShader.SetModelTransform(object->GetModelMatrix());
+
+		const auto & triangles = object->GetTriangles();
+		const auto end = triangles.end();
+
+		for (auto iter = triangles.begin(); iter != end; ++iter)
+		{
+			const Vector3 normal = iter->Normal();
+
+			std::array<VertexShaderOutput,3> vertexShaded;
+
+			for (unsigned i = 0; i < 3; ++i)
+				vertexShaded[i] = vertexShader.Execute(iter->points[i], normal);
+
+			geometry::Triangle projected = {
+				vertexShaded[0].m_projected.XYZ(),
+				vertexShaded[1].m_projected.XYZ(),
+				vertexShaded[2].m_projected.XYZ(),
+			};
+
+			if (cull && projected.IsAntiClockwise())
+				continue;
+
+			rasta.DrawTriangle(vertexShaded);
+
+			if (drawNormals)
+			{
+				Vector3 centre = iter->Centre();
+				Vector3 normalExtent = centre + (iter->Normal() * 5.0);
+
+				VertexShaderOutput centre_v = vertexShader.Execute(centre);
+				VertexShaderOutput normalExtent_v = vertexShader.Execute(normalExtent);
+
+				rasta.DrawLine(
+					centre_v.m_screen.x, centre_v.m_screen.y,
+					normalExtent_v.m_screen.x, normalExtent_v.m_screen.y,
+					Colour::Red);
+			}
+		}
+	}
+
+	g_frame->CopyToWindow();
+	FrameCount(hWnd);
 }
 
 int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -105,102 +174,16 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static bool paused = false;
 	static bool cull = true;
 	static bool drawNormals = false;
-	static bool yrot = true;
 
 	switch (message)
 	{
+		case WM_ERASEBKGND:
+			return TRUE;
+
 		case WM_PAINT:
-		{
-			if (pFrames == 0)
-			{
-				pFrames = new DoubleBuffer(hWnd);
-			}
-
-			FrameBuffer *pFrame = pFrames->GetFrame();
-			pFrame->Clear();
-
-			std::chrono::steady_clock::time_point time = std::chrono::steady_clock::now();
-			long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(time - g_lastTime).count();
-			Real toRotate = (kRotationPerSec / 1000.0)* ms;
-
-			if (!paused)
-				g_rotation += toRotate;
-
-			if (g_rotation > 360.0)
-				g_rotation = 0.0;
-
-			g_lastTime = time;
-			Rasteriser rasta(pFrame, mode);
-
-			const unsigned width = pFrame->GetWidth();
-			const unsigned height = pFrame->GetHeight();
-
-			// cube is clipped too early or something
-			// camera at z=-35 face at z=-45 and it is clipped
-			Projection projection(90.0f, 1.0f, 1000.0f, width, height);
-
-			Matrix4 modelTransform =
-				Matrix4::Translation({ 0.0, 0.0, -50.0 });
-			
-			if (yrot)
-				modelTransform = modelTransform * Matrix4::RotationAboutY(Units::Degrees, g_rotation);
-			else
-				modelTransform = modelTransform * Matrix4::RotationAboutX(Units::Degrees, g_rotation);
-
-			//Vector3 rotationCentre{ 0.0, 0.0, -50.0 };
-			//Vector3 direction{ Real(sin(g_rotation * DEG_TO_RAD)), 0.0, Real(cos(g_rotation * DEG_TO_RAD)) };
-			//g_camera.SetPosition(rotationCentre + direction * 50.0);
-
-			VertexShader vertexShader(projection, g_vertexShader.get());
-			vertexShader.SetModelTransform(modelTransform);
-			vertexShader.SetViewTransform(g_camera.GetTransform());
-
-			Vector3 light{ 0.0, 0.0, 0.0 };
-			rasta.SetLightPosition(light);
-
-			geometry::Cube cube(10.0);
-			const auto end = cube.triangles.end();
-
-			for (auto iter = cube.triangles.begin(); iter != end; ++iter)
-			{
-				const Vector3 normal = iter->Normal();
-
-				std::array<VertexShaderOutput,3> vertexShaded;
-
-				for (unsigned i = 0; i < 3; ++i)
-					vertexShaded[i] = vertexShader.Execute(iter->points[i], normal);
-
-				geometry::Triangle projected = {
-					vertexShaded[0].m_projected.XYZ(),
-					vertexShaded[1].m_projected.XYZ(),
-					vertexShaded[2].m_projected.XYZ(),
-				};
-
-				if (cull && projected.IsAntiClockwise())
-					continue;
-
-				rasta.DrawTriangle(vertexShaded);
-
-				if (drawNormals)
-				{
-					Vector3 centre = iter->Centre();
-					Vector3 normalExtent = centre + (iter->Normal() * 5.0);
-
-					VertexShaderOutput centre_v = vertexShader.Execute(centre);
-					VertexShaderOutput normalExtent_v = vertexShader.Execute(normalExtent);
-
-					rasta.DrawLine(
-						centre_v.m_screen.x, centre_v.m_screen.y,
-						normalExtent_v.m_screen.x, normalExtent_v.m_screen.y,
-						Colour::Red);
-				}
-			}
-
-			pFrames->Swap();
-			FrameCount(hWnd);
-
+			// TODO: put this somewhere else and use the default WM_PAINT handler
+			RenderLoop(hWnd, mode, cull, drawNormals, paused);
 			break;
-		}
 
 		case WM_MOUSEMOVE:
 			g_inputHandler.DecodeMouseMove(lParam, wParam);
@@ -241,10 +224,6 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				cull = !cull;
 			}
-			else if (wParam == 'R')
-			{
-				yrot = !yrot;
-			}
 			else if (wParam == VK_ESCAPE)
 			{
 				exit(0);
@@ -262,6 +241,10 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				g_vertexShader = CreateVertexShader();
 				g_fragmentShader = CreateFragmentShader();
 			}
+			else if (wParam == 'P')
+			{
+				g_sceneDriver->Next();
+			}
 			break;
 
 		case WM_DESTROY:
@@ -278,6 +261,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommand
 {
 	g_vertexShader = CreateVertexShader();
 	g_fragmentShader = CreateFragmentShader();
+	g_sceneDriver = new SceneDriver();
 
 	HBRUSH hPen = (HBRUSH)CreatePen(PS_INSIDEFRAME, 0, RGB(0,0,0));
 
@@ -321,7 +305,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommand
 			DispatchMessage(&msg);
 		}
 
-		// HMM: Setting to true makes it flicker
 		InvalidateRect(hwnd, NULL, false);
 	}
 	return 0;

@@ -8,6 +8,7 @@
 #include "VertexShader.h"
 
 class FrameBuffer;
+class ShadyObject;
 
 enum class RenderMode
 {
@@ -23,7 +24,7 @@ enum class RenderMode
 class Rasteriser
 {
 public:
-	Rasteriser(FrameBuffer *pFrame, RenderMode mode);
+	Rasteriser(FrameBuffer *pFrame, RenderMode mode, ShadyObject * shader);
 
 	void SetLightPosition(const Vector3 & position)
 	{
@@ -45,4 +46,5 @@ private:
 	FrameBuffer *m_pFrame;
 	RenderMode m_mode;
 	Vector3 m_lightPosition;
+	ShadyObject * m_fragmentShader;
 };

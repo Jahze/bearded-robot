@@ -95,16 +95,6 @@ public:
 		return { v4.x / v4.w, v4.y / v4.w, v4.z / v4.w };
 	}
 
-	static Matrix4 Identity()
-	{
-		return {{{
-			{ 1.0, 0.0, 0.0, 0.0 },
-			{ 0.0, 1.0, 0.0, 0.0 },
-			{ 0.0, 0.0, 1.0, 0.0 },
-			{ 0.0, 0.0, 0.0, 1.0 },
-		}}};
-	}
-
 	static Matrix4 Translation(const Vector3 & rhs)
 	{
 		return {{{
@@ -163,6 +153,8 @@ public:
 			{ 0.0, 0.0, 0.0, 1.0 }
 		}}};
 	}
+
+	static const Matrix4 Identity;
 
 private:
 	Real m_values[4][4];

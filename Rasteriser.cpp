@@ -6,9 +6,10 @@
 #include "Rasteriser.h"
 #include "Types.h"
 
-Rasteriser::Rasteriser(FrameBuffer *pFrame, RenderMode mode)
+Rasteriser::Rasteriser(FrameBuffer *pFrame, RenderMode mode, ShadyObject * shader)
 	: m_pFrame(pFrame)
 	, m_mode(mode)
+	, m_fragmentShader(shader)
 {
 }
 
@@ -34,9 +35,7 @@ void Rasteriser::DrawTriangle(const std::array<VertexShaderOutput, 3> & triangle
 	std::sort(std::begin(points), std::end(points),
 		[](const Point & p1, const Point & p2) { return p1.y < p2.y; });
 
-	extern std::unique_ptr<ShadyObject> g_fragmentShader;
-
-	FragmentShader shader(g_fragmentShader.get());
+	FragmentShader shader(m_fragmentShader);
 
 	shader.SetTriangleContext(&triangle);
 	shader.SetLightPosition(m_lightPosition);
