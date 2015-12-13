@@ -71,6 +71,9 @@
     <ClInclude Include="scenes\BouncingCube.h">
       <Filter>Scenes</Filter>
     </ClInclude>
+    <ClInclude Include="scenes\SpinningSphere.h">
+      <Filter>Scenes</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">

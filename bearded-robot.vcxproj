@@ -81,6 +81,7 @@
     <ClInclude Include="Scene.h" />
     <ClInclude Include="scenes\BouncingCube.h" />
     <ClInclude Include="scenes\SpinningCube.h" />
+    <ClInclude Include="scenes\SpinningSphere.h" />
     <ClInclude Include="ScopedHDC.h" />
     <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="Types.h" />

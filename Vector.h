@@ -64,6 +64,14 @@ public:
 		return { x / scalar, y / scalar, z / scalar };
 	}
 
+	Vector3 & operator/=(Real scalar)
+	{
+		x /= scalar;
+		y /= scalar;
+		z /= scalar;
+		return *this;
+	}
+
 	Vector3 operator+(const Vector3 & rhs) const
 	{
 		return { x + rhs.x, y + rhs.y, z + rhs.z };
@@ -80,6 +88,11 @@ public:
 	Vector3 operator-(const Vector3 & rhs) const
 	{
 		return { x - rhs.x, y - rhs.y, z - rhs.z };
+	}
+
+	bool operator==(const Vector3 & rhs) const
+	{
+		return x == rhs.x && y == rhs.y && z == rhs.z;
 	}
 };
 

@@ -185,8 +185,8 @@ void Rasteriser::DrawLine(int x1, int y1, int x2, int y2, const Colour & colour)
 
 	while (true)
 	{
-		// TODO this dies if it's x<0||x>width etc
-		m_pFrame->SetPixel(x, y, colour);
+		if (x >= 0 && y >= 0 && x < m_pFrame->GetWidth() && y < m_pFrame->GetHeight())
+			m_pFrame->SetPixel(x, y, colour);
 
 		if (x == x2 && y == y2)
 			break;

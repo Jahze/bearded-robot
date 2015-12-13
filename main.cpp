@@ -133,12 +133,10 @@ void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool pa
 
 		for (auto iter = triangles.begin(); iter != end; ++iter)
 		{
-			const Vector3 normal = iter->Normal();
-
 			std::array<VertexShaderOutput,3> vertexShaded;
 
 			for (unsigned i = 0; i < 3; ++i)
-				vertexShaded[i] = vertexShader.Execute(iter->points[i], normal);
+				vertexShaded[i] = vertexShader.Execute(iter->points[i], iter->normals[i]);
 
 			geometry::Triangle projected = {
 				vertexShaded[0].m_projected.XYZ(),
@@ -153,16 +151,20 @@ void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool pa
 
 			if (drawNormals)
 			{
-				Vector3 centre = iter->Centre();
-				Vector3 normalExtent = centre + (iter->Normal() * 5.0);
+				for (unsigned i = 0; i < 3; ++i)
+				{
+					Vector3 start = iter->points[i];
+					Vector3 end = start + (iter->normals[i] * 5.0);
 
-				VertexShaderOutput centre_v = vertexShader.Execute(centre);
-				VertexShaderOutput normalExtent_v = vertexShader.Execute(normalExtent);
+					VertexShaderOutput start_v = vertexShader.Execute(start);
+					VertexShaderOutput end_v = vertexShader.Execute(end);
 
-				rasta.DrawLine(
-					centre_v.m_screen.x, centre_v.m_screen.y,
-					normalExtent_v.m_screen.x, normalExtent_v.m_screen.y,
-					Colour::Red);
+					rasta.DrawLine(
+						start_v.m_screen.x, start_v.m_screen.y,
+						end_v.m_screen.x, end_v.m_screen.y,
+						Colour::Red);
+				}
+
 			}
 		}
 	}
