@@ -13,6 +13,11 @@ class BouncingCube
 	: public IScene
 {
 public:
+	BouncingCube()
+	{
+		m_cube.SetModelMatrix(Matrix4::Translation({ 0.0, m_lasty, -70.0 }));
+	}
+
 	void Update(long long ms)
 	{
 		if (! m_stopped)
@@ -68,7 +73,7 @@ public:
 
 private:
 	Real m_speed = 0.0;
-	Real m_acceleration = -9.8;
+	Real m_acceleration = -980;
 
 	Real m_lasty = 30.0;
 	Real m_highest = 30.0;

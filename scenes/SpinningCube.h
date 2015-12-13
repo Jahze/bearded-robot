@@ -11,6 +11,11 @@ class SpinningCube
 	: public IScene
 {
 public:
+	SpinningCube()
+	{
+		m_cube.SetModelMatrix(Matrix4::Translation({ 0.0, 0.0, -50.0 }));
+	}
+
 	void Update(long long ms)
 	{
 		const Real kRotationPerSec = 50.0;

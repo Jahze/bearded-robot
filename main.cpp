@@ -65,6 +65,8 @@ namespace
 	std::unique_ptr<ShadyObject> g_fragmentShader;
 
 	SceneDriver * g_sceneDriver;
+
+	int g_mx, g_my;
 }
 
 void FrameCount(HWND hwnd)
@@ -85,7 +87,8 @@ void FrameCount(HWND hwnd)
 		++count;
 	}
 
-	std::string str = "FPS: " + std::to_string((unsigned long long)lastFps);
+	std::string str = "FPS: " + std::to_string((unsigned long long)lastFps) +
+		" x=" + std::to_string(g_mx) + ", y=" + std::to_string(g_my);
 
 	ScopedHDC hdc(hwnd);
 	TextOut(hdc, 5, 5, str.c_str(), str.length());
@@ -185,8 +188,20 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			RenderLoop(hWnd, mode, cull, drawNormals, paused);
 			break;
 
+		case WM_LBUTTONDOWN:
+			g_inputHandler.SetLockCursor(true);
+			g_inputHandler.AddMouseListener(&g_camera);
+			break;
+
+		case WM_LBUTTONUP:
+			g_inputHandler.SetLockCursor(false);
+			g_inputHandler.RemoveMouseListener(&g_camera);
+			break;
+
 		case WM_MOUSEMOVE:
 			g_inputHandler.DecodeMouseMove(lParam, wParam);
+			g_mx = LOWORD(lParam);
+			g_my = HIWORD(lParam);
 			break;
 
 		case WM_KEYDOWN:
@@ -284,10 +299,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommand
 	ShowWindow(hwnd, nCmdShow);
 	UpdateWindow(hwnd);
 
-	RECT rect;
-	::GetWindowRect(hwnd, &rect);
-	g_inputHandler.SetWindowArea(rect);
-	g_inputHandler.AddMouseListener(&g_camera);
+	g_inputHandler.SetWindowArea(hwnd);
 
 	BOOL bRet;
 	MSG msg;

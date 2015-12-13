@@ -16,18 +16,43 @@ void InputHandler::DecodeMouseMove(LPARAM lParam, WPARAM wParam)
 	for (auto && listener : m_mouseListeners)
 		listener->MouseMoved(x - m_lastX, y - m_lastY);
 
-	ResetCursor();
+	m_lastX = x;
+	m_lastY = y;
+
+	if (m_lockCursor)
+	{
+		ResetCursor();
+	}
+
 }
-void InputHandler::SetWindowArea(const RECT & rect)
+void InputHandler::SetWindowArea(HWND hwnd)
 {
+	m_hwnd = hwnd;
+
+	RECT rect;
+	::GetWindowRect(hwnd, &rect);
+
 	unsigned width = rect.right - rect.left;
 	unsigned height = rect.bottom - rect.top;
 
 	m_halfScreenX = rect.left + width / 2;
 	m_halfScreenY = rect.top + height / 2;
 
-	::ShowCursor(FALSE);
-	ResetCursor();
+	POINT pos;
+	::GetCursorPos(&pos);
+	::ScreenToClient(m_hwnd, &pos);
+
+	m_lastX = pos.x;
+	m_lastY = pos.y;
+
+	if (m_lockCursor)
+		ResetCursor();
+}
+
+void InputHandler::SetLockCursor(bool lock)
+{
+	m_lockCursor = lock;
+	::ShowCursor(!lock);
 }
 
 void InputHandler::ResetCursor()
