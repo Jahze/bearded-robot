@@ -18,10 +18,7 @@ export void main()
 	float dp = dot3(g_world_normal, directionToLight);
 	float clamped = clamp(dp, 0.0, dp);
 
-	float k = 0.1;
-	float attenuation = 1.0 / (lightDistance * k);
-
-	vec4 colour = ambient + (diffuse * clamped * attenuation);
+	vec4 colour = ambient + (diffuse * clamped);
 
 	g_colour[0] = clamp(colour[0], 0.0, 1.0);
 	g_colour[1] = clamp(colour[1], 0.0, 1.0);
