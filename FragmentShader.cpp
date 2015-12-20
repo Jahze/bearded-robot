@@ -84,22 +84,25 @@ VertexShaderOutput FragmentShader::InterpolateForContext(int x, int y) const
 	const VertexShaderOutput & triangle1 = (*m_triangleContext)[1];
 	const VertexShaderOutput & triangle2 = (*m_triangleContext)[2];
 
+	Real x_ = x + 0.5;
+	Real y_ = y + 0.5;
+
 	Real subArea1 = AreaOfTriangle(
 		triangle1.m_screen.x, triangle1.m_screen.y,
 		triangle2.m_screen.x, triangle2.m_screen.y,
-		x, y
+		x_, y_
 	);
 
 	Real subArea2 = AreaOfTriangle(
 		triangle0.m_screen.x, triangle0.m_screen.y,
 		triangle2.m_screen.x, triangle2.m_screen.y,
-		x, y
+		x_, y_
 	);
 
 	Real subArea3 = AreaOfTriangle(
 		triangle0.m_screen.x, triangle0.m_screen.y,
 		triangle1.m_screen.x, triangle1.m_screen.y,
-		x, y
+		x_, y_
 	);
 
 	Real a1 = subArea1 / (m_totalArea *  triangle0.m_projected.w);
