@@ -3,6 +3,7 @@
 #include "ClipPlane.h"
 #include "Colour.h"
 #include "FrameBuffer.h"
+#include "Point.h"
 #include "Rasteriser.h"
 #include "Types.h"
 
@@ -24,8 +25,6 @@ void Rasteriser::DrawTriangle(const std::array<VertexShaderOutput, 3> & triangle
 		return;
 	}
 
-	struct Point { int x; int y; };
-
 	std::array<Point, 3> points = { {
 		{ triangle[0].m_screen.x, triangle[0].m_screen.y },
 		{ triangle[1].m_screen.x, triangle[1].m_screen.y },
@@ -40,46 +39,58 @@ void Rasteriser::DrawTriangle(const std::array<VertexShaderOutput, 3> & triangle
 	shader.SetTriangleContext(&triangle);
 	shader.SetLightPosition(m_lightPosition);
 
-	if (points[0].y == points[1].y)
-	{
-		DrawFlatTopTriangle(
-			shader,
-			points[0].x, points[0].y,
-			points[1].x, points[1].y,
-			points[2].x, points[2].y);
-	}
-	else if (points[1].y == points[2].y)
-	{
-		DrawFlatBottomTriangle(
-			shader,
-			points[0].x, points[0].y,
-			points[1].x, points[1].y,
-			points[2].x, points[2].y);
-	}
-	else
-	{
-		int x_distance = points[2].x - points[0].x;
-		int y_distance = points[2].y - points[0].y;
-		Real x_delta = static_cast<Real>(x_distance) / static_cast<Real>(y_distance);
-		int split_distance = points[1].y - points[0].y;
+	DrawTriangle(shader, points[0].x, points[0].y, points[1].x, points[1].y, points[2].x, points[2].y);
+}
 
-		Point split =
+void Rasteriser::DrawTriangle(const FragmentShader & fragmentShader,
+	Real x1, Real y1, Real x2, Real y2, Real x3, Real y3)
+{
+	Real height = y3 - y1;
+
+	if (height == 0.0)
+		return;
+
+	Real y1_floor = std::floor(y1);
+	int y_start = (y1 - y1_floor <= 0.5) ? y1_floor : y1_floor + 1.0;
+
+	Real y2_floor = std::floor(y2);
+	int y_mid = (y2 - y2_floor <= 0.5) ? y2_floor - 1.0 : y2_floor;
+
+	Real y3_floor = std::floor(y3);
+	int y_end = (y3 - y3_floor <= 0.5) ? y3_floor - 1.0 : y3_floor;
+
+	Real delta1 = (x3 - x1) / height;
+
+	for (int y = y_start; y <= y_end; ++y)
+	{
+		Real ry = y;
+		ry += 0.5;
+
+		Real px1 = x1 + delta1 * (ry - y1);
+		Real px2;
+
+		if (y <= y_mid)
 		{
-			points[0].x + (x_delta * split_distance),
-			points[1].y
-		};
+			Real delta2 = (x2 - x1) / (y2 - y1);
+			px2 = x1 + delta2 * (ry - y1);
+		}
+		else
+		{
+			Real delta2 = (x3 - x2) / (y3 - y2);
+			px2 = x2 + delta2 * (ry - y2);
+		}
 
-		DrawFlatBottomTriangle(
-			shader,
-			points[0].x, points[0].y,
-			split.x, split.y,
-			points[1].x, points[1].y);
+		if (px1 > px2)
+			std::swap(px1, px2);
 
-		DrawFlatTopTriangle(
-			shader,
-			split.x, split.y,
-			points[1].x, points[1].y,
-			points[2].x, points[2].y);
+		Real px1_floor = std::floor(px1);
+		int px_start = (px1 - px1_floor <= 0.5) ? px1_floor : px1_floor + 1.0;
+
+		Real px2_floor = std::floor(px2);
+		int px_end = (px2 - px2_floor <= 0.5) ? px2_floor - 1.0 : px2_floor;
+
+		for (int x = px_start; x <= px_end; ++x)
+			m_pFrame->SetPixel(x, y, fragmentShader.Execute(x, y));
 	}
 }
 
@@ -99,76 +110,6 @@ void Rasteriser::DrawWireFrameTriangle(const std::array<VertexShaderOutput, 3> &
 		triangle[2].m_screen.x, triangle[2].m_screen.y,
 		triangle[0].m_screen.x, triangle[0].m_screen.y,
 		Colour::White);
-}
-
-void Rasteriser::DrawFlatTopTriangle(const FragmentShader & fragmentShader,
-	int x1, int y1, int x2, int y2, int x3, int y3)
-{
-	assert(y1 == y2);
-
-	if (m_mode == RenderMode::ShowRasterTriSplits)
-	{
-		DrawLine(x1, y1, x2, y2, Colour::White);
-		DrawLine(x2, y2, x3, y3, Colour::White);
-		DrawLine(x3, y3, x1, y1, Colour::White);
-		return;
-	}
-
-	if (x2 < x1)
-		std::swap(x1, x2);
-
-	int y_distance = y3 - y1;
-	Real dx1 = static_cast<Real>(x3 - x1) / static_cast<Real>(y_distance);
-	Real dx2 = static_cast<Real>(x3 - x2) / static_cast<Real>(y_distance);
-
-	Real x_start = x1;
-	Real x_end = x2;
-
-	for (int y = y1; y <= y3; ++y)
-	{
-		const int end = round(x_end);
-
-		for (int x = round(x_start); x <= end; ++x)
-			m_pFrame->SetPixel(x, y, fragmentShader.Execute(x, y));
-
-		x_start += dx1;
-		x_end += dx2;
-	}
-}
-
-void Rasteriser::DrawFlatBottomTriangle(const FragmentShader & fragmentShader,
-	int x1, int y1, int x2, int y2, int x3, int y3)
-{
-	assert(y2 == y3);
-
-	if (m_mode == RenderMode::ShowRasterTriSplits)
-	{
-		DrawLine(x1, y1, x2, y2, Colour::White);
-		DrawLine(x2, y2, x3, y3, Colour::White);
-		DrawLine(x3, y3, x1, y1, Colour::White);
-		return;
-	}
-
-	if (x3 < x2)
-		std::swap(x2, x3);
-
-	int y_distance = y2 - y1;
-	Real dx1 = static_cast<Real>(x1 - x2) / static_cast<Real>(y_distance);
-	Real dx2 = static_cast<Real>(x1 - x3) / static_cast<Real>(y_distance);
-
-	Real x_start = x2;
-	Real x_end = x3;
-
-	for (int y = y2; y >= y1; --y)
-	{
-		const int end = round(x_end);
-
-		for (int x = round(x_start); x <= end; ++x)
-			m_pFrame->SetPixel(x, y, fragmentShader.Execute(x, y));
-
-		x_start += dx1;
-		x_end += dx2;
-	}
 }
 
 void Rasteriser::DrawLine(int x1, int y1, int x2, int y2, const Colour & colour)

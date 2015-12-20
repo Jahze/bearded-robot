@@ -16,7 +16,6 @@ enum class RenderMode
 
 	WireFrame = 0,
 	Fill,
-	ShowRasterTriSplits,
 
 	End,
 };
@@ -35,11 +34,9 @@ public:
 	void DrawLine(int x1, int y1, int x2, int y2, const Colour & colour);
 
 private:
+	void DrawTriangle(const FragmentShader & fragmentShader,
+		Real x1, Real y1, Real x2, Real y2, Real x3, Real y3);
 	void DrawWireFrameTriangle(const std::array<VertexShaderOutput, 3> & triangle);
-	void DrawFlatTopTriangle(const FragmentShader & fragmentShader,
-		int x1, int y1, int x2, int y2, int x3, int y3);
-	void DrawFlatBottomTriangle(const FragmentShader & fragmentShader,
-		int x1, int y1, int x2, int y2, int x3, int y3);
 
 	bool ShouldCull(const std::array<VertexShaderOutput, 3> & triangle);
 

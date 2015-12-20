@@ -11,9 +11,9 @@ export void main()
 	ambient[2] = 0.2;
 
 	vec4 diffuse;
-	diffuse[0] = 1.0;
-	diffuse[1] = 1.0;
-	diffuse[2] = 1.0;
+	diffuse[0] = 0.8;
+	diffuse[1] = 0.8;
+	diffuse[2] = 0.8;
 
 	float dp = dot3(g_world_normal, directionToLight);
 	float clamped = clamp(dp, 0.0, dp);
