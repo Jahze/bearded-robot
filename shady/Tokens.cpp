@@ -96,6 +96,10 @@ tokeniser::TokenDefinitions CreateDefinitions()
 	definitions.Add(Token(TokenType::LogicalNot, "!"));
 	definitions.Add(Token(TokenType::LogicalEquals, "!="));
 	definitions.Add(Token(TokenType::LogicalEquals, "=="));
+	definitions.Add(Token(TokenType::LogicalLessEquals, "<="));
+	definitions.Add(Token(TokenType::LogicalGreaterEquals, ">="));
+	definitions.Add(Token(TokenType::LogicalLess, "<"));
+	definitions.Add(Token(TokenType::LogicalGreater, ">"));
 	definitions.Add(Token(TokenType::Assign, "="));
 	definitions.Add(Token(TokenType::Add, "+"));
 	definitions.Add(Token(TokenType::AddAssign, "+="));

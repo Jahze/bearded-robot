@@ -31,7 +31,36 @@ namespace
 			assert(cursor < m_code->m_bytes.size());
 			assert(m_start < m_code->m_bytes.size());
 
+			assert(m_code->m_bytes.size() - m_start < 256);
+
 			m_code->m_bytes[cursor] = m_code->m_bytes.size() - m_start;
+		}
+
+	private:
+		FunctionCode * m_code;
+		uint32_t m_start;
+		int32_t m_offset;
+	};
+
+	class JumpPatcher32
+	{
+	public:
+		JumpPatcher32(FunctionCode * code, int32_t offset)
+			: m_code(code)
+			, m_start(code->m_bytes.size())
+			, m_offset(offset)
+		{ }
+
+		void PatchToHere()
+		{
+			uint32_t cursor = m_start + m_offset;
+
+			assert(cursor < m_code->m_bytes.size());
+			assert(m_start < m_code->m_bytes.size());
+
+			uint32_t offset = m_code->m_bytes.size() - m_start;
+
+			std::memcpy(&m_code->m_bytes[cursor], &offset, 4);
 		}
 
 	private:
@@ -302,8 +331,17 @@ void CodeGenerator::ProcessFunction(SyntaxNode * functionNode)
 
 	m_layout.PlaceParametersAndLocals(m_currentFunction);
 
-	SyntaxNode * statements = functionNode->m_nodes[2].get();
+	ProcessStatements(functionNode->m_nodes[2].get());
 
+	m_layout.RelinquishParametersAndLocals(m_currentFunction);
+
+	m_functions[m_currentFunction->GetName()] = m_currentFunctionCode;
+
+	m_currentFunction = nullptr;
+}
+
+void CodeGenerator::ProcessStatements(SyntaxNode * statements)
+{
 	for (auto && node : statements->m_nodes)
 	{
 		switch (node->m_type)
@@ -345,6 +383,15 @@ void CodeGenerator::ProcessFunction(SyntaxNode * functionNode)
 			break;
 		}
 
+		case SyntaxNodeType::If:
+		{
+			Layout::StackLayout stack = m_layout.TemporaryLayout();
+
+			ProcessIf(stack, node.get());
+
+			break;
+		}
+
 		case SyntaxNodeType::Return:
 			// TODO : return values
 			CodeBytes({ 0xC3 });
@@ -355,12 +402,6 @@ void CodeGenerator::ProcessFunction(SyntaxNode * functionNode)
 			throw std::runtime_error("malformed syntax tree");
 		}
 	}
-
-	m_layout.RelinquishParametersAndLocals(m_currentFunction);
-
-	m_functions[m_currentFunction->GetName()] = m_currentFunctionCode;
-
-	m_currentFunction = nullptr;
 }
 
 CodeGenerator::ValueDescription CodeGenerator::ProcessExpression(Layout::StackLayout & stack, SyntaxNode * expression)
@@ -408,6 +449,8 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessExpression(Layout::StackLa
 		return ProcessFunctionCall(stack, expression);
 
 	case SyntaxNodeType::Negate:
+		return ProcessNegate(stack, expression);
+
 	case SyntaxNodeType::LogicalNegate:
 	case SyntaxNodeType::Equals:
 	case SyntaxNodeType::NotEquals:
@@ -430,19 +473,8 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessLiteral(Layout::StackLayou
 	if (type->GetType() == BuiltinTypeType::Float)
 	{
 		float value = std::stof(literal->m_data);
-		SymbolLocation location;
 
-		auto iter = m_constantFloats.find(value);
-
-		if (iter == m_constantFloats.end())
-		{
-			location = m_layout.PlaceGlobalFloatInMemory();
-			m_constantFloats[value] = location;
-		}
-		else
-		{
-			location = iter->second;
-		}
+		SymbolLocation location = GetConstantFloat(value);
 
 		SymbolLocation temporary = stack.PlaceTemporary(type);
 
@@ -639,6 +671,55 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessSubtract(Layout::StackLayo
 	}
 
 	throw std::runtime_error("malformed syntax tree");
+}
+
+CodeGenerator::ValueDescription CodeGenerator::ProcessNegate(Layout::StackLayout & stack, SyntaxNode * negate)
+{
+	assert(negate->m_nodes.size() == 1);
+
+	ValueDescription value;
+
+	{
+		Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+		value = ProcessExpression(subStack, negate->m_nodes[0].get());
+	}
+
+	assert(value.type->IsScalar() || (value.type->IsVector() && ! value.type->IsMatrix()));
+
+	SymbolLocation out = stack.PlaceTemporary(value.type);
+
+	if (out != value.location)
+		GenerateWrite({ out, value.type }, value);
+
+	if (value.type->GetType() == BuiltinTypeType::Int)
+	{
+		CodeBytes(0xF7);
+		CodeBytes(ConstructModRM(out, 3));
+
+		DebugAsm("neg $",
+			TranslateValue({ out, value.type }));
+	}
+	else
+	{
+		// XXX: This does vectors and floats
+		// there is no xorss instruction
+
+		uint32_t xor = 0x80000000;
+		float mask = *reinterpret_cast<float*>(&xor);
+		std::tuple<float, float, float, float> constant { mask, mask, mask, mask };
+
+		SymbolLocation constantLocation = GetConstantVector(constant);
+
+		CodeBytes({ 0x0F, 0x57 });
+		CodeBytes(ConstructModRM(out, constantLocation));
+
+		DebugAsm("xorps $,$",
+			TranslateValue({ out, value.type }),
+			TranslateValue({ constantLocation, value.type }));
+	}
+
+	return { out, value.type };
 }
 
 CodeGenerator::ValueDescription CodeGenerator::ProcessSubscript(Layout::StackLayout & stack, SyntaxNode * subscript)
@@ -898,6 +979,140 @@ CodeGenerator::ValueDescription CodeGenerator::ProcessFunctionCall(Layout::Stack
 	throw std::runtime_error("function call not implemented");
 }
 
+void CodeGenerator::ProcessRelational(Layout::StackLayout & stack, SyntaxNode * relational)
+{
+	assert(br::one_of(relational->m_type, SyntaxNodeType::Equals, SyntaxNodeType::NotEquals,
+		SyntaxNodeType::Greater, SyntaxNodeType::GreaterEquals, SyntaxNodeType::Less,
+		SyntaxNodeType::LessEquals));
+
+	assert(relational->m_nodes.size() == 2);
+
+	Layout::StackLayout subStack = m_layout.TemporaryLayout();
+
+	ValueDescription lhs = ProcessExpression(subStack, relational->m_nodes[0].get());
+	ValueDescription rhs = ProcessExpression(subStack, relational->m_nodes[1].get());
+
+	if (lhs.type != rhs.type)
+	{
+		// TODO: convert between float and int
+		throw std::runtime_error("malformed syntax tree");
+	}
+
+	// TODO: == and != allow any type
+
+	if (lhs.type->GetType() == BuiltinTypeType::Int)
+	{
+		uint8_t opcode = 0x39;
+
+		std::unique_ptr<Layout::TemporaryRegister> reg;
+
+		if (lhs.location.InMemory())
+		{
+			if (rhs.location.InMemory())
+			{
+				reg = m_layout.GetFreeRegister();
+
+				GenerateWrite({ reg->Location(), rhs.type }, rhs);
+
+				rhs.location = reg->Location();
+			}
+		}
+		else
+		{
+			opcode = 0x3B;
+		}
+
+		CodeBytes(opcode);
+		CodeBytes(ConstructModRM(lhs.location, rhs.location));
+
+		DebugAsm("cmp $,$",
+			TranslateValue(lhs),
+			TranslateValue(rhs));
+	}
+	else
+	{
+		std::unique_ptr<Layout::TemporaryRegister> reg;
+
+		if (lhs.location.InMemory())
+		{
+			reg = m_layout.GetFreeXmmRegister();
+
+			GenerateWrite({ reg->Location(), lhs.type }, lhs);
+
+			lhs.location = reg->Location();
+		}
+
+		CodeBytes({ 0x0F, 0x2F });
+		CodeBytes(ConstructModRM(lhs.location, rhs.location));
+
+		DebugAsm("comiss $,$",
+			TranslateValue(lhs),
+			TranslateValue(rhs));
+	}
+}
+
+void CodeGenerator::ProcessIf(Layout::StackLayout & stack, SyntaxNode * if_)
+{
+	assert(if_->m_nodes.size() > 1);
+
+	SyntaxNode * condition = if_->m_nodes[0].get();
+
+	assert(condition->m_nodes.size() == 1);
+	assert(condition->m_type == SyntaxNodeType::Condition);
+
+	SyntaxNode * expression = condition->m_nodes[0].get();
+
+	assert(expression->m_nodes.size() == 1);
+	assert(expression->m_type == SyntaxNodeType::Expression);
+
+	ProcessRelational(stack, expression->m_nodes[0].get());
+
+	switch (expression->m_nodes[0]->m_type)
+	{
+	case SyntaxNodeType::Less:
+		CodeBytes({ 0x0F, 0x83, 0x00, 0x00, 0x00, 0x00 });
+		DebugAsm("jae x");
+		break;
+	case SyntaxNodeType::LessEquals:
+		CodeBytes({ 0x0F, 0x87, 0x00, 0x00, 0x00, 0x00 });
+		DebugAsm("ja x");
+		break;
+	case SyntaxNodeType::Greater:
+		CodeBytes({ 0x0F, 0x86, 0x00, 0x00, 0x00, 0x00 });
+		DebugAsm("jbe x");
+		break;
+	case SyntaxNodeType::GreaterEquals:
+		CodeBytes({ 0x0F, 0x82, 0x00, 0x00, 0x00, 0x00 });
+		DebugAsm("jb x");
+		break;
+	case SyntaxNodeType::Equals:
+		CodeBytes({ 0x0F, 0x85, 0x00, 0x00, 0x00, 0x00 });
+		DebugAsm("jne x");
+		break;
+	case SyntaxNodeType::NotEquals:
+		CodeBytes({ 0x0F, 0x84, 0x00, 0x00, 0x00, 0x00 });
+		DebugAsm("je x");
+		break;
+	default:
+		throw std::runtime_error("malformed syntax tree");
+	}
+
+	JumpPatcher32 end(&m_currentFunctionCode, -4);
+
+	SyntaxNode * statements = if_->m_nodes[1].get();
+
+	assert(statements->m_type == SyntaxNodeType::StatementList);
+
+	ProcessStatements(statements);
+
+	end.PatchToHere();
+
+	if (if_->m_nodes.size() > 2)
+	{
+		throw std::runtime_error("not implemented");
+	}
+}
+
 CodeGenerator::ValueDescription CodeGenerator::ResolveRegisterPart(Layout::StackLayout & stack, ValueDescription value)
 {
 	if (value.location.m_type == SymbolLocation::RegisterPart)
@@ -928,19 +1143,7 @@ CodeGenerator::ValueDescription CodeGenerator::ResolveRegisterPart(Layout::Stack
 		const int one = 1;
 		std::tuple<float, float, float, float> constant { 0.0f, 0.0f, 0.0f, *reinterpret_cast<const float*>(&one) };
 
-		SymbolLocation constantLocation;
-
-		auto iter = m_constantVectors.find(constant);
-
-		if (iter == m_constantVectors.end())
-		{
-			constantLocation = m_layout.PlaceGlobalVectorInMemory();
-			m_constantVectors[constant] = constantLocation;
-		}
-		else
-		{
-			constantLocation = iter->second;
-		}
+		SymbolLocation constantLocation = GetConstantVector(constant);
 
 		// TODO : move this to the part where it gets written
 		// this would allow any operation to leave crap in the upper bits
@@ -1550,6 +1753,38 @@ SymbolLocation CodeGenerator::GenerateExplodeFloat(Layout::StackLayout & stack, 
 	}
 
 	return scalars;
+}
+
+SymbolLocation CodeGenerator::GetConstantFloat(float value)
+{
+	auto iter = m_constantFloats.find(value);
+
+	if (iter == m_constantFloats.end())
+	{
+		SymbolLocation location = m_layout.PlaceGlobalFloatInMemory();
+
+		m_constantFloats[value] = location;
+
+		return location;
+	}
+
+	return iter->second;
+}
+
+SymbolLocation CodeGenerator::GetConstantVector(std::tuple<float, float, float, float> value)
+{
+	auto iter = m_constantVectors.find(value);
+
+	if (iter == m_constantVectors.end())
+	{
+		SymbolLocation location = m_layout.PlaceGlobalVectorInMemory();
+
+		m_constantVectors[value] = location;
+
+		return location;
+	}
+
+	return iter->second;
 }
 
 namespace

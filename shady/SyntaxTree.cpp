@@ -556,7 +556,7 @@ void SyntaxTree::Expression(SyntaxNode *parent)
 
 std::unique_ptr<SyntaxNode> SyntaxTree::AssignmentExpression()
 {
-	std::unique_ptr<SyntaxNode> node = AdditiveExpression();
+	std::unique_ptr<SyntaxNode> node = RelationalExpression();
 
 	auto ParseRhs = [&] (SyntaxNodeType type, std::function<bool(BuiltinType*, BuiltinType*)> check, bool mult)
 	{
@@ -662,37 +662,40 @@ std::unique_ptr<SyntaxNode> SyntaxTree::AdditiveExpression()
 
 	BuiltinType *lhsType = m_currentExpressionType;
 
-	if (Is(m_iterator->Peek(), TokenType::Add))
+	while (Is(m_iterator->Peek(), TokenType::Add) || Is(m_iterator->Peek(), TokenType::Subtract))
 	{
-		tokeniser::Token next = m_iterator->Next();
+		if (Is(m_iterator->Peek(), TokenType::Add))
+		{
+			tokeniser::Token next = m_iterator->Next();
 
-		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Add));
-		operation->AddChild(std::move(node));
-		operation->AddChild(MultipicativeExpression());
+			std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Add));
+			operation->AddChild(std::move(node));
+			operation->AddChild(MultipicativeExpression());
 
-		if (! CheckAdditiveExpressionCompatibility(lhsType, m_currentExpressionType))
-			throw SyntaxException(next, "Cannot add '" + lhsType->GetName() +
-				"' and '" + m_currentExpressionType->GetName() + "'");
+			if (! CheckAdditiveExpressionCompatibility(lhsType, m_currentExpressionType))
+				throw SyntaxException(next, "Cannot add '" + lhsType->GetName() +
+					"' and '" + m_currentExpressionType->GetName() + "'");
 
-		m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
+			m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
 
-		return operation;
-	}
-	else if (Is(m_iterator->Peek(), TokenType::Subtract))
-	{
-		tokeniser::Token next = m_iterator->Next();
+			node = std::move(operation);
+		}
+		else if (Is(m_iterator->Peek(), TokenType::Subtract))
+		{
+			tokeniser::Token next = m_iterator->Next();
 
-		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Subtract));
-		operation->AddChild(std::move(node));
-		operation->AddChild(MultipicativeExpression());
+			std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Subtract));
+			operation->AddChild(std::move(node));
+			operation->AddChild(MultipicativeExpression());
 
-		if (! CheckAdditiveExpressionCompatibility(lhsType, m_currentExpressionType))
-			throw SyntaxException(next, "Cannot subtract '" + lhsType->GetName() +
-				"' and '" + m_currentExpressionType->GetName() + "'");
+			if (! CheckAdditiveExpressionCompatibility(lhsType, m_currentExpressionType))
+				throw SyntaxException(next, "Cannot subtract '" + lhsType->GetName() +
+					"' and '" + m_currentExpressionType->GetName() + "'");
 
-		m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
+			m_currentExpressionType = ResultOf(lhsType, m_currentExpressionType);
 
-		return operation;
+			node = std::move(operation);
+		}
 	}
 
 	return node;
@@ -752,7 +755,8 @@ std::unique_ptr<SyntaxNode> SyntaxTree::UnaryOperatorExpression()
 		std::unique_ptr<SyntaxNode> operation(new SyntaxNode(nullptr, SyntaxNodeType::Negate));
 		operation->AddChild(PostfixExpression());
 
-		if (! m_currentExpressionType->IsScalar() && ! m_currentExpressionType->IsVector())
+		if (m_currentExpressionType->IsMatrix() ||
+			(! m_currentExpressionType->IsScalar() && ! m_currentExpressionType->IsVector()))
 			throw SyntaxException(next, "Unary '-' applied to invalid expression");
 
 		return operation;
@@ -931,6 +935,8 @@ void SyntaxTree::IfStatement(SyntaxNode *parent)
 {
 	assert(Is(m_iterator->Peek(), TokenType::If));
 
+	m_iterator->Next();
+
 	SyntaxNode *ifStatement = parent->AddChild(SyntaxNodeType::If);
 
 	Condition(ifStatement);
@@ -953,15 +959,14 @@ void SyntaxTree::IfStatement(SyntaxNode *parent)
 
 			peeked = m_iterator->Peek();
 
-			SyntaxNode *elseStatement = ifStatement->AddChild(SyntaxNodeType::Else);
-
 			if (Is(peeked, TokenType::If))
 			{
-				IfStatement(elseStatement);
+				IfStatement(ifStatement->AddChild(SyntaxNodeType::ElseIf));
 			}
 			else
 			{
-				StatementList(elseStatement);
+				StatementList(ifStatement->AddChild(SyntaxNodeType::Else));
+				parsed = false;
 			}
 		}
 	}

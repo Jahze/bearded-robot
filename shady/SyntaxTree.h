@@ -46,6 +46,7 @@ enum class SyntaxNodeType
 	If,
 	Condition,
 	Else,
+	ElseIf,
 	While,
 	For,
 	FunctionCall,

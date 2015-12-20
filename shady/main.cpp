@@ -50,6 +50,7 @@ int main()
 		"}\n";
 	*/
 
+	/*
 	std::string test =
 		"export void main()\n"
 		"{\n"
@@ -79,6 +80,24 @@ int main()
 		"	g_colour[0] = clamp(colour[0], 0.0, 1.0);\n"
 		"	g_colour[1] = clamp(colour[1], 0.0, 1.0);\n"
 		"	g_colour[2] = clamp(colour[2], 0.0, 1.0);\n"
+		"\n"
+		"	return;\n"
+		"}\n";
+	*/
+
+	std::string test =
+		"export void main()\n"
+		"{\n"
+		"	int x = 100;\n"
+		"	int y = 200;\n"
+		"	float f = 1.0;\n"
+		"\n"
+		"	if (x < y)\n"
+		"		{ x = 1; }\n"
+		"	if (x > 0)\n"
+		"		{ y = 2; }\n"
+		"	if (f >= 100.0)\n"
+		"		{ f = 100.0; }\n"
 		"\n"
 		"	return;\n"
 		"}\n";

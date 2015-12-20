@@ -71,6 +71,7 @@ private:
 	void InitialLayout();
 
 	void ProcessFunction(SyntaxNode * function);
+	void ProcessStatements(SyntaxNode * statements);
 
 	ValueDescription ProcessExpression(Layout::StackLayout & stack, SyntaxNode * expression);
 	ValueDescription ProcessLiteral(Layout::StackLayout & stack, SyntaxNode * literal);
@@ -82,8 +83,12 @@ private:
 	ValueDescription ProcessAdd(Layout::StackLayout & stack, SyntaxNode * add, bool isAssign);
 	ValueDescription ProcessSubtract(Layout::StackLayout & stack, SyntaxNode * subtract, bool isAssign);
 
+	ValueDescription ProcessNegate(Layout::StackLayout & stack, SyntaxNode * negate);
 	ValueDescription ProcessSubscript(Layout::StackLayout & stack, SyntaxNode * subscript);
 	ValueDescription ProcessFunctionCall(Layout::StackLayout & stack, SyntaxNode * function);
+
+	void ProcessRelational(Layout::StackLayout & stack, SyntaxNode * relational);
+	void ProcessIf(Layout::StackLayout & stack, SyntaxNode * if_);
 
 	ValueDescription ResolveRegisterPart(Layout::StackLayout & stack, ValueDescription value);
 
@@ -114,6 +119,9 @@ private:
 		SymbolLocation out);
 
 	SymbolLocation GenerateExplodeFloat(Layout::StackLayout & stack, ValueDescription & float_);
+
+	SymbolLocation GetConstantFloat(float value);
+	SymbolLocation GetConstantVector(std::tuple<float,float,float,float> value);
 
 	std::vector<uint8_t> ConstructModRM(const SymbolLocation & target, const SymbolLocation & source);
 	std::vector<uint8_t> ConstructModRM(const SymbolLocation & target, uint8_t r);
