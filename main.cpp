@@ -1,68 +1,26 @@
 #include <array>
-#include <chrono>
 #include <ctime>
-#include <fstream>
-#include <memory>
 #include <string>
 #include <Windows.h>
 
 #include "Camera.h"
+#include "Console.h"
 #include "FrameBuffer.h"
-#include "Geometry.h"
 #include "InputHandler.h"
-#include "Matrix.h"
 #include "Projection.h"
 #include "Rasteriser.h"
 #include "ScopedHDC.h"
 #include "Scene.h"
-#include "ShaderCompiler.h"
-#include "Vector.h"
+#include "ShaderCache.h"
 #include "VertexShader.h"
 
 namespace
 {
-	std::unique_ptr<ShadyObject> CreateVertexShader()
-	{
-		std::ifstream file("vertex.shader");
-
-		std::string source{std::istreambuf_iterator<char>(file),
-			std::istreambuf_iterator<char>()};
-
-		std::string error;
-		ShaderCompiler compiler;
-
-		std::unique_ptr<ShadyObject> object = compiler.CompileVertexShader(source, error);
-
-		assert(error.empty());
-
-		return object;
-	}
-
-	std::unique_ptr<ShadyObject> CreateFragmentShader()
-	{
-		std::ifstream file("fragment.shader");
-
-		std::string source{std::istreambuf_iterator<char>(file),
-			std::istreambuf_iterator<char>()};
-
-		std::string error;
-		ShaderCompiler compiler;
-
-		std::unique_ptr<ShadyObject> object = compiler.CompileFragmentShader(source, error);
-
-		assert(error.empty());
-
-		return object;
-	}
-
 	FrameBuffer *g_frame = nullptr;
 
 	Camera g_camera;
 
 	InputHandler g_inputHandler;
-
-	std::unique_ptr<ShadyObject> g_vertexShader;
-	std::unique_ptr<ShadyObject> g_fragmentShader;
 
 	SceneDriver * g_sceneDriver;
 
@@ -104,7 +62,7 @@ void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool pa
 	FrameBuffer *pFrame = g_frame;
 	pFrame->Clear();
 
-	Rasteriser rasta(pFrame, mode, g_fragmentShader.get());
+	Rasteriser rasta(pFrame, mode, ShaderCache::Get().FragmentShader());
 
 	Vector3 light { 0.0, 0.0, 0.0 };
 	rasta.SetLightPosition(light);
@@ -114,7 +72,7 @@ void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool pa
 
 	Projection projection(90.0f, 1.0f, 1000.0f, width, height);
 
-	VertexShader vertexShader(projection, g_vertexShader.get());
+	VertexShader vertexShader(projection, ShaderCache::Get().VertexShader());
 
 	g_sceneDriver->Update(paused);
 
@@ -223,6 +181,11 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				g_camera.Move(Vector3::UnitZ);
 			}
+			else if (wParam == VK_RETURN)
+			{
+				Console console;
+				console.ProcessCommands();
+			}
 			break;
 
 		case WM_KEYUP:
@@ -255,8 +218,10 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			else if (wParam == 'U')
 			{
-				g_vertexShader = CreateVertexShader();
-				g_fragmentShader = CreateFragmentShader();
+				std::string error;
+
+				ShaderCache::Get().LoadVertexShader("vertex.shader", error);
+				ShaderCache::Get().LoadFragmentShader("fragment.shader", error);
 			}
 			else if (wParam == 'P')
 			{
@@ -276,9 +241,12 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, int nCmdShow)
 {
-	g_vertexShader = CreateVertexShader();
-	g_fragmentShader = CreateFragmentShader();
 	g_sceneDriver = new SceneDriver();
+
+	std::string error;
+
+	ShaderCache::Get().LoadVertexShader("vertex.shader", error);
+	ShaderCache::Get().LoadFragmentShader("fragment.shader", error);
 
 	HBRUSH hPen = (HBRUSH)CreatePen(PS_INSIDEFRAME, 0, RGB(0,0,0));
 
