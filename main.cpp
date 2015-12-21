@@ -106,8 +106,10 @@ void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool pa
 
 	Rasteriser rasta(pFrame, mode, g_fragmentShader.get());
 
-	Vector3 light { 0.0, 0.0, 0.0 };
-	rasta.SetLightPosition(light);
+	Vector4 light { 0.0, 0.0, 0.0, 1.0 };
+	Vector3 lightViewSpace = (g_camera.GetTransform() * light).XYZ();
+
+	rasta.SetLightPosition(lightViewSpace);
 
 	const unsigned width = pFrame->GetWidth();
 	const unsigned height = pFrame->GetHeight();
