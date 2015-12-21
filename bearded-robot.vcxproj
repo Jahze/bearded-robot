@@ -75,6 +75,7 @@
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="InputHandler.h" />
     <ClInclude Include="Matrix.h" />
+    <ClInclude Include="ObjReader.h" />
     <ClInclude Include="Point.h" />
     <ClInclude Include="Projection.h" />
     <ClInclude Include="Rasteriser.h" />
@@ -82,6 +83,7 @@
     <ClInclude Include="scenes\BouncingCube.h" />
     <ClInclude Include="scenes\SpinningCube.h" />
     <ClInclude Include="scenes\SpinningSphere.h" />
+    <ClInclude Include="scenes\Bunny.h" />
     <ClInclude Include="ScopedHDC.h" />
     <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="Types.h" />
@@ -97,6 +99,7 @@
     <ClCompile Include="InputHandler.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Matrix.cpp" />
+    <ClCompile Include="ObjReader.cpp" />
     <ClCompile Include="Projection.cpp" />
     <ClCompile Include="Rasteriser.cpp" />
     <ClCompile Include="Scene.cpp" />

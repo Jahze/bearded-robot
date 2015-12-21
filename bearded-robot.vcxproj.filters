@@ -74,6 +74,12 @@
     <ClInclude Include="scenes\SpinningSphere.h">
       <Filter>Scenes</Filter>
     </ClInclude>
+    <ClInclude Include="ObjReader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="scenes\Bunny.h">
+      <Filter>Scenes</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -116,6 +122,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Scene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ObjReader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

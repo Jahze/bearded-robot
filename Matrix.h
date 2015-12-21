@@ -105,6 +105,16 @@ public:
 		}}};
 	}
 
+	static Matrix4 Scale(const Vector3 & scale)
+	{
+		return {{{
+			{ scale.x, 0.0,     0.0,     0.0 },
+			{ 0.0,     scale.y, 0.0,     0.0 },
+			{ 0.0,     0.0,     scale.z, 0.0 },
+			{ 0.0,     0.0,     0.0,     1.0 }
+		}}};
+	}
+
 	static Matrix4 RotationAboutX(Units::Radians_t, Real theta)
 	{
 		const Real c = cos(theta);
