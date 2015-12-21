@@ -90,7 +90,12 @@ void Rasteriser::DrawTriangle(const FragmentShader & fragmentShader,
 		int px_end = (px2 - px2_floor <= 0.5) ? px2_floor - 1.0 : px2_floor;
 
 		for (int x = px_start; x <= px_end; ++x)
-			m_pFrame->SetPixel(x, y, fragmentShader.Execute(x, y));
+		{
+			Colour colour;
+
+			if (fragmentShader.Execute(x, y, m_pFrame, colour))
+				m_pFrame->SetPixel(x, y, colour);
+		}
 	}
 }
 

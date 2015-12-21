@@ -22,6 +22,8 @@ FrameBuffer::FrameBuffer(HWND hWnd)
 
 	m_pixels = m_width*m_height;
 	m_pBytes = new unsigned char [m_pixels * m_bytesPerPixel];
+
+	m_depthBuffer.reset(new Real [m_pixels]);
 }
 
 FrameBuffer::~FrameBuffer()
@@ -38,6 +40,7 @@ void FrameBuffer::SetFillColour(const Colour &fill)
 void FrameBuffer::Clear()
 {
 	std::memset(m_pBytes, 0, m_pixels * m_bytesPerPixel);
+	std::memset(m_depthBuffer.get(), 0, m_pixels * sizeof(Real));
 }
 
 void FrameBuffer::CopyToWindow()
@@ -63,4 +66,14 @@ void FrameBuffer::SetPixel(unsigned x, unsigned y, const Colour &colour)
 	m_pBytes[start+1] = g;
 	m_pBytes[start+2] = b;
 	m_pBytes[start+3] = 0xff;
+}
+
+Real FrameBuffer::GetDepth(unsigned x, unsigned y) const
+{
+	return m_depthBuffer[y * m_height + x] + 2.0;
+}
+
+void FrameBuffer::SetDepth(unsigned x, unsigned y, Real depth)
+{
+	m_depthBuffer[y * m_height + x] = depth - 2.0;
 }

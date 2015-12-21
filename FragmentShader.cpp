@@ -1,5 +1,6 @@
 #include <cassert>
 #include "FragmentShader.h"
+#include "FrameBuffer.h"
 #include "ShadyObject.h"
 
 namespace
@@ -23,15 +24,20 @@ FragmentShader::FragmentShader(ShadyObject * shader)
 	, m_g_colour(shader->GetGlobalReader("g_colour"))
 { }
 
-Colour FragmentShader::Execute(int x, int y) const
+bool FragmentShader::Execute(int x, int y, FrameBuffer * buffer, Colour & colour) const
 {
-	VertexShaderOutput interpolated = InterpolateForContext(x, y);
+	InterpolatedValues interpolated = InterpolateForContext(x, y);
+
+	if (buffer->GetDepth(x, y) < interpolated.z)
+		return false;
+
+	buffer->SetDepth(x, y, interpolated.z);
 
 	if (m_shader)
 	{
 		m_g_light0_position.Write(m_lightPosition);
-		m_g_world_position.Write(interpolated.m_position);
-		m_g_world_normal.Write(interpolated.m_normal);
+		m_g_world_position.Write(interpolated.position);
+		m_g_world_normal.Write(interpolated.normal);
 
 		m_shader->Execute();
 
@@ -39,10 +45,12 @@ Colour FragmentShader::Execute(int x, int y) const
 
 		m_g_colour.Read(c);
 
-		return { c.x, c.y, c.z };
+		colour = { c.x, c.y, c.z };
+		return true;
 	}
 
-	return Colour::White;
+	colour = Colour::White;
+	return true;
 }
 
 void FragmentShader::SetLightPosition(const Vector3 & position)
@@ -75,7 +83,7 @@ namespace
 	}
 }
 
-VertexShaderOutput FragmentShader::InterpolateForContext(int x, int y) const
+InterpolatedValues FragmentShader::InterpolateForContext(int x, int y) const
 {
 	// https://en.wikibooks.org/wiki/GLSL_Programming/Rasterization
 	assert(m_triangleContext);
@@ -111,20 +119,22 @@ VertexShaderOutput FragmentShader::InterpolateForContext(int x, int y) const
 
 	Real total = a1 + a2 + a3;
 
-	VertexShaderOutput output;
+	InterpolatedValues output;
 
-	output.m_position = InterpolateVector(
+	output.position = InterpolateVector(
 		triangle0.m_position,
 		triangle1.m_position,
 		triangle2.m_position,
 		a1, a2, a3, total);
 		
 
-	output.m_normal = InterpolateVector(
+	output.normal = InterpolateVector(
 		triangle0.m_normal,
 		triangle1.m_normal,
 		triangle2.m_normal,
 		a1, a2, a3, total);
+
+	output.z = (triangle0.m_projected.z * a1 + triangle1.m_projected.z * a2 + triangle2.m_projected.z * a3) / total;
 
 	return output;
 }

@@ -5,19 +5,28 @@
 #include "ShadyObject.h"
 #include "VertexShader.h"
 
+class FrameBuffer;
+
+struct InterpolatedValues
+{
+	Vector3 position;
+	Vector3 normal;
+	Real z;
+};
+
 class FragmentShader
 {
 public:
 	FragmentShader(ShadyObject * shader);
 
-	Colour Execute(int x, int y) const;
+	bool Execute(int x, int y, FrameBuffer * buffer, Colour & colour) const;
 
 	void SetLightPosition(const Vector3 & position);
 
 	void SetTriangleContext(const std::array<VertexShaderOutput, 3> * triangle);
 
 private:
-	VertexShaderOutput InterpolateForContext(int x, int y) const;
+	InterpolatedValues InterpolateForContext(int x, int y) const;
 
 private:
 	const std::array<VertexShaderOutput, 3> * m_triangleContext = nullptr;

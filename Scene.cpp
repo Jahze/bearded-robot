@@ -9,5 +9,5 @@ SceneDriver::SceneDriver()
 	m_scenes.emplace_back(new scene::SpinningCube());
 	m_scenes.emplace_back(new scene::SpinningSphere());
 	m_scenes.emplace_back(new scene::BouncingCube());
-	//m_scenes.emplace_back(new scene::Bunny());
+	m_scenes.emplace_back(new scene::Bunny());
 }

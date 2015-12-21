@@ -19,25 +19,41 @@ public:
 
 		if (reader.Read("models\\bunny.wfobj"))
 		{
-			m_teapot = reader.GetModel();
-			m_teapot->SetModelMatrix(Matrix4::Translation({ 0.0, 0.0, -50.0 }) * Matrix4::Scale({ 50.0, 50.0, 50.0 }));
+			m_bunny = reader.GetModel();
+			m_bunny->SetModelMatrix(Matrix4::Translation({ 0.0, -5.0, -50.0 }) * Matrix4::Scale({ 80.0, 80.0, 80.0 }));
 		}
 	}
 
 	void Update(long long ms)
 	{
+		const Real kRotationPerSec = 50.0;
+
+		Real toRotate = (kRotationPerSec / 1000.0) * ms;
+
+		m_rotation += toRotate;
+
+		if (m_rotation > 360.0)
+			m_rotation = 0.0;
+
+		Matrix4 modelTransform =
+			Matrix4::Translation({ 0.0, -5.0, -50.0 }) *
+			Matrix4::RotationAboutY(Units::Degrees, m_rotation) *
+			Matrix4::Scale({ 80.0, 80.0, 80.0 });
+
+		m_bunny->SetModelMatrix(modelTransform);
 	}
 
 	ObjectIterator GetObjects()
 	{
-		if (m_teapot)
-			return ObjectIterator({ m_teapot.get() });
+		if (m_bunny)
+			return ObjectIterator({ m_bunny.get() });
 
 		return ObjectIterator({});
 	}
 
 private:
-	std::unique_ptr<geometry::Object> m_teapot;
+	Real m_rotation = 0.0;
+	std::unique_ptr<geometry::Object> m_bunny;
 };
 
 }

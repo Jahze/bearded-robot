@@ -1,7 +1,7 @@
 #pragma once
 
+#include <memory>
 #include <Windows.h>
-
 #include "Colour.h"
 
 class FrameBuffer
@@ -16,6 +16,9 @@ public:
 
 	void SetPixel(unsigned x, unsigned y, const Colour &colour);
 
+	Real GetDepth(unsigned x, unsigned y) const;
+	void SetDepth(unsigned x, unsigned y, Real depth);
+
 	unsigned GetWidth() const { return m_width; }
 	unsigned GetHeight() const { return m_height; }
 
@@ -29,4 +32,5 @@ private:
 	HDC m_hDc;
 	HBITMAP m_hBitmap;
 	Colour m_fillColour;
+	std::unique_ptr<Real[]> m_depthBuffer;
 };
