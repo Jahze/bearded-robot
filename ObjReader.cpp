@@ -35,6 +35,38 @@ ObjModel::ObjModel(std::vector<geometry::Triangle> && faces)
 	m_triangles = std::move(faces);
 }
 
+namespace
+{
+	struct Face
+	{
+		static const std::size_t None = -1;
+
+		std::size_t point = None;
+		std::size_t texture = None;
+		std::size_t normal = None;
+
+		Face(const std::string & face)
+		{
+			std::vector<std::string> parts = Split(face, '/');
+
+			point = std::stoull(parts[0]) - 1;
+
+			if (parts.size() > 1)
+			{
+				if (! parts[1].empty())
+				{
+					texture = std::stoull(parts[1]) - 1;
+				}
+
+				if (parts.size() > 2)
+				{
+					normal = std::stoull(parts[2]) - 1;
+				}
+			}
+		}
+	};
+}
+
 bool ObjReader::Read(const std::string & filename)
 {
 	std::ifstream file(filename);
@@ -44,7 +76,7 @@ bool ObjReader::Read(const std::string & filename)
 
 	std::vector<Vector3> points;
 	std::vector<Vector3> normals;
-	std::vector<std::tuple<std::size_t, std::size_t, std::size_t>> faces;
+	std::vector<std::tuple<Face, Face, Face>> faces;
 
 	while (file)
 	{
@@ -71,22 +103,17 @@ bool ObjReader::Read(const std::string & filename)
 			if (parts.size() != 4)
 				return false;
 
-			//normals.emplace_back(std::stof(parts[1]), std::stof(parts[2]), std::stof(parts[3]));
+			Vector3 normal(std::stof(parts[1]), std::stof(parts[2]), std::stof(parts[3]));
+			normal.Normalize();
+
+			normals.emplace_back(normal);
 		}
 		else if (parts[0] == "f")
 		{
 			if (parts.size() != 4)
 				return false;
 
-			// 1-based -> 0-based
-			std::size_t indices[3] = { std::stoull(parts[1]) - 1, std::stoull(parts[2]) - 1, std::stoull(parts[3]) - 1 };
-
-			const std::size_t size = points.size();
-
-			if (indices[0] >= size || indices[1] >= size || indices[2] >= size)
-				return false;
-
-			faces.emplace_back(indices[0], indices[1], indices[2]);
+			faces.emplace_back(parts[1], parts[2], parts[3]);
 		}
 		// Ignore
 		else if (parts[0] == "mtllib" || parts[0] == "usemtl" || parts[0] == "vt" ||
@@ -109,13 +136,28 @@ bool ObjReader::Read(const std::string & filename)
 			Vector3 normal;
 			std::size_t number = 0;
 
+			const std::size_t index = normals.size();
+
 			for (auto && face : faces)
 			{
-				if (std::get<0>(face) == i || std::get<1>(face) == i || std::get<2>(face) == i)
+				Face & f1 = std::get<0>(face);
+				Face & f2 = std::get<1>(face);
+				Face & f3 = std::get<2>(face);
+
+				if (f1.point == i || f2.point == i ||f3.point == i)
 				{
-					geometry::Triangle triangle(points[std::get<0>(face)], points[std::get<1>(face)], points[std::get<2>(face)]);
+					geometry::Triangle triangle(points[f1.point], points[f2.point], points[f3.point]);
 					normal += triangle.Normal();
 					++number;
+
+					if (f1.point == i)
+						f1.normal = index;
+
+					if (f2.point == i)
+						f2.normal = index;
+
+					if (f3.point == i)
+						f3.normal = index;
 				}
 			}
 
@@ -124,18 +166,20 @@ bool ObjReader::Read(const std::string & filename)
 		}
 	}
 
-	if (normals.size() != points.size())
-		return false;
-
 	std::vector<geometry::Triangle> triangles;
 
 	for (auto && face : faces)
 	{
-		std::size_t v1 = std::get<0>(face);
-		std::size_t v2 = std::get<1>(face);
-		std::size_t v3 = std::get<2>(face);
+		Face f1 = std::get<0>(face);
+		Face f2 = std::get<1>(face);
+		Face f3 = std::get<2>(face);
 
-		triangles.emplace_back(points[v1], points[v2], points[v3], normals[v1], normals[v2], normals[v3]);
+		assert(f1.normal != Face::None);
+		assert(f2.normal != Face::None);
+		assert(f3.normal != Face::None);
+
+		triangles.emplace_back(points[f1.point], points[f2.point], points[f3.point],
+			normals[f1.normal], normals[f2.normal], normals[f3.normal]);
 	}
 
 	m_model.reset(new ObjModel(std::move(triangles)));
