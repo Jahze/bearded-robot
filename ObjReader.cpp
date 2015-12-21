@@ -15,10 +15,7 @@ namespace
 		{
 			out.push_back(string.substr(cursor, pos - cursor));
 
-			cursor = pos;
-
-			while (string[cursor] == c)
-				cursor++;
+			cursor = pos + 1;
 
 			pos = string.find(c, cursor);
 		}
