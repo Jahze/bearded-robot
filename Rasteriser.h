@@ -16,6 +16,7 @@ enum class RenderMode
 
 	WireFrame = 0,
 	Fill,
+	Both,
 
 	End,
 };

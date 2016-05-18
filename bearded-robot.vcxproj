@@ -103,6 +103,9 @@
     <ClCompile Include="Projection.cpp" />
     <ClCompile Include="Rasteriser.cpp" />
     <ClCompile Include="Scene.cpp" />
+    <ClInclude Include="scenes\Teapot.h">
+      <FileType>CppCode</FileType>
+    </ClInclude>
     <ClCompile Include="ShaderCompiler.cpp" />
     <ClCompile Include="Vector.cpp" />
     <ClCompile Include="VertexShader.cpp" />
@@ -114,6 +117,11 @@
     <ProjectReference Include="tokeniser\tokeniser.vcxproj">
       <Project>{a242dee8-b01e-48a1-a362-5d886a956383}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="fragment.shader" />
+    <None Include="fragment_with_specular.shader" />
+    <None Include="vertex.shader" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

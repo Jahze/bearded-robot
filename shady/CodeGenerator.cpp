@@ -1097,7 +1097,7 @@ void CodeGenerator::ProcessIf(Layout::StackLayout & stack, SyntaxNode * if_)
 		throw std::runtime_error("malformed syntax tree");
 	}
 
-	JumpPatcher32 end(&m_currentFunctionCode, -4);
+	JumpPatcher32 after(&m_currentFunctionCode, -4);
 
 	SyntaxNode * statements = if_->m_nodes[1].get();
 
@@ -1105,12 +1105,32 @@ void CodeGenerator::ProcessIf(Layout::StackLayout & stack, SyntaxNode * if_)
 
 	ProcessStatements(statements);
 
-	end.PatchToHere();
+	CodeBytes({ 0xE9, 0x00, 0x00, 0x00, 0x00 });
+	DebugAsm("jmp x");
+
+	JumpPatcher32 end(&m_currentFunctionCode, -4);
+
+	after.PatchToHere();
 
 	if (if_->m_nodes.size() > 2)
 	{
-		throw std::runtime_error("not implemented");
+		SyntaxNode * next = if_->m_nodes[2].get();
+
+		if (next->m_type == SyntaxNodeType::ElseIf)
+		{
+			assert(next->m_nodes.size() > 0);
+			ProcessIf(stack, next->m_nodes[0].get());
+		}
+		else
+		{
+			assert(next->m_type == SyntaxNodeType::Else);
+			assert(next->m_nodes.size() > 0);
+			assert(next->m_nodes[0]->m_type == SyntaxNodeType::StatementList);
+			ProcessStatements(next->m_nodes[0].get());
+		}
 	}
+
+	end.PatchToHere();
 }
 
 CodeGenerator::ValueDescription CodeGenerator::ResolveRegisterPart(Layout::StackLayout & stack, ValueDescription value)

@@ -18,7 +18,7 @@ public:
 
 	void Update(long long ms)
 	{
-		const Real kRotationPerSec = 50.0;
+		const Real kRotationPerSec = 10.0;
 
 		Real toRotate = (kRotationPerSec / 1000.0) * ms;
 

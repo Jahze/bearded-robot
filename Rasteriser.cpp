@@ -40,6 +40,9 @@ void Rasteriser::DrawTriangle(const std::array<VertexShaderOutput, 3> & triangle
 	shader.SetLightPosition(m_lightPosition);
 
 	DrawTriangle(shader, points[0].x, points[0].y, points[1].x, points[1].y, points[2].x, points[2].y);
+
+	if (m_mode == RenderMode::Both)
+		DrawWireFrameTriangle(triangle);
 }
 
 void Rasteriser::DrawTriangle(const FragmentShader & fragmentShader,

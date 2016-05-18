@@ -12,6 +12,9 @@
     <Filter Include="Scenes">
       <UniqueIdentifier>{bd43a6b6-ec41-4ade-aea3-bf578e1fbebc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{522fca92-ba0f-4755-ba2b-0be7cc951121}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Vector.h">
@@ -127,5 +130,19 @@
     <ClCompile Include="ObjReader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="scenes\Teapot.h">
+      <Filter>Scenes</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="fragment.shader">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="fragment_with_specular.shader">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="vertex.shader">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>
