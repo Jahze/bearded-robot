@@ -56,7 +56,7 @@ namespace
 			uint32_t cursor = m_start + m_offset;
 
 			assert(cursor < m_code->m_bytes.size());
-			assert(m_start < m_code->m_bytes.size());
+			assert(m_start <= m_code->m_bytes.size());
 
 			uint32_t offset = m_code->m_bytes.size() - m_start;
 

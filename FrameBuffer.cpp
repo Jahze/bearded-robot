@@ -70,10 +70,10 @@ void FrameBuffer::SetPixel(unsigned x, unsigned y, const Colour &colour)
 
 Real FrameBuffer::GetDepth(unsigned x, unsigned y) const
 {
-	return m_depthBuffer[y * m_height + x] + 2.0;
+	return m_depthBuffer[y * m_width + x] + 2.0;
 }
 
 void FrameBuffer::SetDepth(unsigned x, unsigned y, Real depth)
 {
-	m_depthBuffer[y * m_height + x] = depth - 2.0;
+	m_depthBuffer[y * m_width + x] = depth - 2.0;
 }

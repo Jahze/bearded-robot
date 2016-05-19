@@ -40,7 +40,7 @@ namespace
 
 	std::unique_ptr<ShadyObject> CreateFragmentShader()
 	{
-		std::ifstream file("fragment_cel.shader");
+		std::ifstream file("fragment_with_specular.shader");
 
 		std::string source{std::istreambuf_iterator<char>(file),
 			std::istreambuf_iterator<char>()};

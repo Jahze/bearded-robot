@@ -5,25 +5,24 @@ export void main()
 
 	directionToLight = normalize(directionToLight);
 
+	vec4 ambient;
+	ambient[0] = 0.0;
+	ambient[1] = 0.2;
+	ambient[2] = 0.0;
+
+	vec4 diffuse;
+	diffuse[0] = 0.0;
+	diffuse[1] = 0.7;
+	diffuse[2] = 0.0;
+
 	float dp = dot3(g_world_normal, directionToLight);
 	float clamped = clamp(dp, 0.0, dp);
 
-	if (clamped > 0.95)
-	{
-		g_colour[2] = 1.0;
-	}
-	else if (clamped > 0.5)
-	{
-		g_colour[2] = 0.6;
-	}
-	else if (clamped > 0.25)
-	{
-		g_colour[2] = 0.4;
-	}
-	else
-	{
-		g_colour[2] = 0.2;
-	}
+	vec4 colour = ambient + (diffuse * clamped);
+
+	g_colour[0] = clamp(colour[0], 0.0, 1.0);
+	g_colour[1] = clamp(colour[1], 0.0, 1.0);
+	g_colour[2] = clamp(colour[2], 0.0, 1.0);
 
 	return;
 }
