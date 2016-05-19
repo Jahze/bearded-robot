@@ -8,19 +8,8 @@ export void main()
 	float dp = dot3(g_world_normal, directionToLight);
 	float clamped = clamp(dp, 0.0, dp);
 
-	vec4 viewDirection = normalize(-g_world_position);
-	float outline = dot3(viewDirection, g_world_normal);
-
 	g_colour[0] = 0.0;
 	g_colour[1] = 0.0;
-
-	float outlineLimit = 0.3 - clamped * 0.1;
-
-	if (outline < outlineLimit)
-	{
-		g_colour[2] = 0.0;
-		return;
-	}
 
 	if (clamped > 0.75)
 	{

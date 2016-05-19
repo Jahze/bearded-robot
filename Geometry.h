@@ -68,20 +68,34 @@ public:
 	}
 };
 
+struct RenderPass
+{
+	bool m_reverseCull = false;
+	ShadyObject * m_vertexShader = nullptr;
+	ShadyObject * m_fragmentShader = nullptr;
+};
+
 class Object
 {	
 public:
+	Object()
+		: m_passes(1)
+	{ }
 	const Matrix4 & GetModelMatrix() const { return m_model; }
 	void SetModelMatrix(const Matrix4 & model) { m_model = model; }
 
-	bool ReverseCull() const { return m_reverseCull; }
-	void SetReverseCull(bool reverse) { m_reverseCull = reverse; }
+	const std::size_t GetNumPasses() const { return m_passes.size(); }
+	const RenderPass & GetPass(std::size_t index) const { return m_passes[index]; }
+	void AddPass() { m_passes.resize(m_passes.size() + 1); }
 
-	ShadyObject * VertexShader() const { return m_vertexShader; }
-	void SetVertexShader(ShadyObject * shader) { m_vertexShader = shader; }
+	bool ReverseCull(std::size_t index) const { return m_passes[index].m_reverseCull; }
+	void SetReverseCull(std::size_t index, bool reverse) { m_passes[index].m_reverseCull = reverse; }
 
-	ShadyObject * FragmentShader() const { return m_fragmentShader; }
-	void SetFragmentShader(ShadyObject * shader) { m_fragmentShader = shader; }
+	ShadyObject * VertexShader(std::size_t index) const { return m_passes[index].m_vertexShader; }
+	void SetVertexShader(std::size_t index, ShadyObject * shader) { m_passes[index].m_vertexShader = shader; }
+
+	ShadyObject * FragmentShader(std::size_t index) const { return m_passes[index].m_fragmentShader; }
+	void SetFragmentShader(std::size_t index, ShadyObject * shader) { m_passes[index].m_fragmentShader = shader; }
 
 	const std::vector<Triangle> & GetTriangles() const
 	{
@@ -92,8 +106,7 @@ protected:
 	Matrix4 m_model = Matrix4::Identity;
 	std::vector<geometry::Triangle> m_triangles;
 	bool m_reverseCull = false;
-	ShadyObject * m_vertexShader = nullptr;
-	ShadyObject * m_fragmentShader = nullptr;
+	std::vector<RenderPass> m_passes;
 };
 
 class Cube

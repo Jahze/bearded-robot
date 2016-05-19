@@ -153,5 +153,11 @@
     <None Include="fragment_cel.shader">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="outline_fragment.shader">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="outline_vertex.shader">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

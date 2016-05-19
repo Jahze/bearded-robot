@@ -89,55 +89,62 @@ void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool pa
 	{
 		geometry::Object * object = iterator.Next();
 
-		ShadyObject * vshader = object->VertexShader();
+		const std::size_t passes = object->GetNumPasses();
 
-		if (vshader)
-			vertexShader.SetShader(vshader);
-
-		ShadyObject * fshader = object->FragmentShader();
-
-		if (fshader)
-			rasta.SetShader(fshader);
-
-		vertexShader.SetModelTransform(object->GetModelMatrix());
-
-		const auto & triangles = object->GetTriangles();
-		const auto end = triangles.end();
-
-		for (auto iter = triangles.begin(); iter != end; ++iter)
+		for (std::size_t pass = 0; pass < passes; ++pass)
 		{
-			std::array<VertexShaderOutput,3> vertexShaded;
+			ShadyObject * vshader = object->VertexShader(pass);
 
-			for (unsigned i = 0; i < 3; ++i)
-				vertexShaded[i] = vertexShader.Execute(iter->points[i], iter->normals[i]);
+			if (vshader)
+				vertexShader.SetShader(vshader);
 
-			geometry::Triangle projected = {
-				vertexShaded[0].m_projected.XYZ(),
-				vertexShaded[1].m_projected.XYZ(),
-				vertexShaded[2].m_projected.XYZ(),
-			};
+			ShadyObject * fshader = object->FragmentShader(pass);
 
-			if (cull && projected.IsAntiClockwise() == !object->ReverseCull())
-				continue;
+			if (fshader)
+				rasta.SetShader(fshader);
 
-			rasta.DrawTriangle(vertexShaded);
+			bool reverseCull = object->ReverseCull(pass);
 
-			if (drawNormals)
+			vertexShader.SetModelTransform(object->GetModelMatrix());
+
+			const auto & triangles = object->GetTriangles();
+			const auto end = triangles.end();
+
+			for (auto iter = triangles.begin(); iter != end; ++iter)
 			{
+				std::array<VertexShaderOutput,3> vertexShaded;
+
 				for (unsigned i = 0; i < 3; ++i)
+					vertexShaded[i] = vertexShader.Execute(iter->points[i], iter->normals[i]);
+
+				geometry::Triangle projected = {
+					vertexShaded[0].m_projected.XYZ(),
+					vertexShaded[1].m_projected.XYZ(),
+					vertexShaded[2].m_projected.XYZ(),
+				};
+
+				if (cull && projected.IsAntiClockwise() == !reverseCull)
+					continue;
+
+				rasta.DrawTriangle(vertexShaded);
+
+				if (drawNormals)
 				{
-					Vector3 start = iter->points[i];
-					Vector3 end = start + (iter->normals[i] * 5.0);
+					for (unsigned i = 0; i < 3; ++i)
+					{
+						Vector3 start = iter->points[i];
+						Vector3 end = start + (iter->normals[i] * 5.0);
 
-					VertexShaderOutput start_v = vertexShader.Execute(start);
-					VertexShaderOutput end_v = vertexShader.Execute(end);
+						VertexShaderOutput start_v = vertexShader.Execute(start);
+						VertexShaderOutput end_v = vertexShader.Execute(end);
 
-					rasta.DrawLine(
-						start_v.m_screen.x, start_v.m_screen.y,
-						end_v.m_screen.x, end_v.m_screen.y,
-						Colour::Red);
+						rasta.DrawLine(
+							start_v.m_screen.x, start_v.m_screen.y,
+							end_v.m_screen.x, end_v.m_screen.y,
+							Colour::Red);
+					}
+
 				}
-
 			}
 		}
 	}

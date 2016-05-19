@@ -8,7 +8,6 @@
 
 namespace scene
 {
-
 	class Teapot
 		: public IScene
 	{
@@ -21,7 +20,23 @@ namespace scene
 			{
 				m_teapot = reader.GetModel();
 				m_teapot->SetModelMatrix(Matrix4::Translation({ 0.0, -5.0, -30.0 }) * Matrix4::Scale({ 10.0, 10.0, 10.0 }));
-				m_teapot->SetFragmentShader(ShaderCache::Get().GetFragmentShader("fragment_cel.shader"));
+
+				// Pass 1 backface rendering for outlines
+				ShadyObject * outlineVertexShader = ShaderCache::Get().GetVertexShader("outline_vertex.shader");
+				m_teapot->SetVertexShader(0, outlineVertexShader);
+
+				ShadyObject * outlineFragmentShader = ShaderCache::Get().GetFragmentShader("outline_fragment.shader");
+				m_teapot->SetFragmentShader(0, outlineFragmentShader);
+
+				m_teapot->SetReverseCull(0, true);
+
+				// Pass 2 cel shaded
+				m_teapot->AddPass();
+
+				m_teapot->SetVertexShader(1, ShaderCache::Get().DefaultVertexShader());
+
+				ShadyObject * celFragmentShader = ShaderCache::Get().GetFragmentShader("fragment_cel.shader");
+				m_teapot->SetFragmentShader(1, celFragmentShader);
 			}
 		}
 
