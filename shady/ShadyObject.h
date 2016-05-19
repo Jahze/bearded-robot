@@ -49,6 +49,10 @@ public:
 	class GlobalWriter
 	{
 	public:
+		GlobalWriter()
+			: m_destination(nullptr)
+		{ }
+
 		GlobalWriter(void * destination, bool byAddress)
 			: m_destination(destination)
 			, m_byAddress(byAddress)
@@ -69,7 +73,7 @@ public:
 		}
 
 	private:
-		void *const m_destination;
+		void * m_destination;
 		bool m_byAddress;
 	};
 
@@ -100,6 +104,10 @@ public:
 	class GlobalReader
 	{
 	public:
+		GlobalReader()
+			: m_source(nullptr)
+		{ }
+
 		GlobalReader(void * source)
 			: m_source(source)
 		{ }
@@ -107,11 +115,11 @@ public:
 		template<typename T>
 		void Read(T & t) const
 		{
-			std:memcpy(&t, m_source, sizeof(T));
+			std::memcpy(&t, m_source, sizeof(T));
 		}
 
 	private:
-		void *const m_source;
+		void * m_source;
 	};
 
 	GlobalWriter GetGlobalLocation(const std::string & name)

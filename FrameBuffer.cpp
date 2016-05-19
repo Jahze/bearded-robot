@@ -39,7 +39,7 @@ void FrameBuffer::SetFillColour(const Colour &fill)
 
 void FrameBuffer::Clear()
 {
-	std::memset(m_pBytes, 0, m_pixels * m_bytesPerPixel);
+	std::memset(m_pBytes, 128, m_pixels * m_bytesPerPixel);
 	std::memset(m_depthBuffer.get(), 0, m_pixels * sizeof(Real));
 }
 

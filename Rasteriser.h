@@ -31,6 +31,11 @@ public:
 		m_lightPosition = position;
 	}
 
+	void SetShader(ShadyObject * shader)
+	{
+		m_fragmentShader = shader;
+	}
+
 	void DrawTriangle(const std::array<VertexShaderOutput, 3> & triangle);
 	void DrawLine(int x1, int y1, int x2, int y2, const Colour & colour);
 

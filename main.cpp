@@ -1,8 +1,6 @@
 #include <array>
 #include <chrono>
 #include <ctime>
-#include <fstream>
-#include <memory>
 #include <string>
 #include <Windows.h>
 
@@ -15,54 +13,17 @@
 #include "Rasteriser.h"
 #include "ScopedHDC.h"
 #include "Scene.h"
-#include "ShaderCompiler.h"
+#include "ShaderCache.h"
 #include "Vector.h"
 #include "VertexShader.h"
 
 namespace
 {
-	std::unique_ptr<ShadyObject> CreateVertexShader()
-	{
-		std::ifstream file("vertex.shader");
-
-		std::string source{std::istreambuf_iterator<char>(file),
-			std::istreambuf_iterator<char>()};
-
-		std::string error;
-		ShaderCompiler compiler;
-
-		std::unique_ptr<ShadyObject> object = compiler.CompileVertexShader(source, error);
-
-		assert(error.empty());
-
-		return object;
-	}
-
-	std::unique_ptr<ShadyObject> CreateFragmentShader()
-	{
-		std::ifstream file("fragment_with_specular.shader");
-
-		std::string source{std::istreambuf_iterator<char>(file),
-			std::istreambuf_iterator<char>()};
-
-		std::string error;
-		ShaderCompiler compiler;
-
-		std::unique_ptr<ShadyObject> object = compiler.CompileFragmentShader(source, error);
-
-		assert(error.empty());
-
-		return object;
-	}
-
 	FrameBuffer *g_frame = nullptr;
 
 	Camera g_camera;
 
 	InputHandler g_inputHandler;
-
-	std::unique_ptr<ShadyObject> g_vertexShader;
-	std::unique_ptr<ShadyObject> g_fragmentShader;
 
 	SceneDriver * g_sceneDriver;
 
@@ -104,7 +65,7 @@ void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool pa
 	FrameBuffer *pFrame = g_frame;
 	pFrame->Clear();
 
-	Rasteriser rasta(pFrame, mode, g_fragmentShader.get());
+	Rasteriser rasta(pFrame, mode, ShaderCache::Get().DefaultFragmentShader());
 
 	Vector4 light { 0.0, 0.0, 0.0, 1.0 };
 	Vector3 lightViewSpace = (g_camera.GetTransform() * light).XYZ();
@@ -116,7 +77,7 @@ void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool pa
 
 	Projection projection(90.0f, 1.0f, 1000.0f, width, height);
 
-	VertexShader vertexShader(projection, g_vertexShader.get());
+	VertexShader vertexShader(projection, ShaderCache::Get().DefaultVertexShader());
 
 	g_sceneDriver->Update(paused);
 
@@ -127,6 +88,16 @@ void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool pa
 	while (iterator.HasMore())
 	{
 		geometry::Object * object = iterator.Next();
+
+		ShadyObject * vshader = object->VertexShader();
+
+		if (vshader)
+			vertexShader.SetShader(vshader);
+
+		ShadyObject * fshader = object->FragmentShader();
+
+		if (fshader)
+			rasta.SetShader(fshader);
 
 		vertexShader.SetModelTransform(object->GetModelMatrix());
 
@@ -146,7 +117,7 @@ void RenderLoop(HWND hWnd, RenderMode mode, bool cull, bool drawNormals, bool pa
 				vertexShaded[2].m_projected.XYZ(),
 			};
 
-			if (cull && projected.IsAntiClockwise())
+			if (cull && projected.IsAntiClockwise() == !object->ReverseCull())
 				continue;
 
 			rasta.DrawTriangle(vertexShaded);
@@ -255,11 +226,6 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				g_camera.Reset();
 			}
-			else if (wParam == 'U')
-			{
-				g_vertexShader = CreateVertexShader();
-				g_fragmentShader = CreateFragmentShader();
-			}
 			else if (wParam == 'P')
 			{
 				g_sceneDriver->Next();
@@ -278,8 +244,6 @@ int WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCommandLine, int nCmdShow)
 {
-	g_vertexShader = CreateVertexShader();
-	g_fragmentShader = CreateFragmentShader();
 	g_sceneDriver = new SceneDriver();
 
 	HBRUSH hPen = (HBRUSH)CreatePen(PS_INSIDEFRAME, 0, RGB(0,0,0));

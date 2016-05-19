@@ -3,6 +3,7 @@
 #include <cmath>
 #include <vector>
 #include "Matrix.h"
+#include "ShaderCache.h"
 #include "Vector.h"
 
 namespace geometry
@@ -68,17 +69,19 @@ public:
 };
 
 class Object
-{
+{	
 public:
-	const Matrix4 & GetModelMatrix() const
-	{
-		return m_model;
-	}
+	const Matrix4 & GetModelMatrix() const { return m_model; }
+	void SetModelMatrix(const Matrix4 & model) { m_model = model; }
 
-	void SetModelMatrix(const Matrix4 & model)
-	{
-		m_model = model;
-	}
+	bool ReverseCull() const { return m_reverseCull; }
+	void SetReverseCull(bool reverse) { m_reverseCull = reverse; }
+
+	ShadyObject * VertexShader() const { return m_vertexShader; }
+	void SetVertexShader(ShadyObject * shader) { m_vertexShader = shader; }
+
+	ShadyObject * FragmentShader() const { return m_fragmentShader; }
+	void SetFragmentShader(ShadyObject * shader) { m_fragmentShader = shader; }
 
 	const std::vector<Triangle> & GetTriangles() const
 	{
@@ -88,6 +91,9 @@ public:
 protected:
 	Matrix4 m_model = Matrix4::Identity;
 	std::vector<geometry::Triangle> m_triangles;
+	bool m_reverseCull = false;
+	ShadyObject * m_vertexShader = nullptr;
+	ShadyObject * m_fragmentShader = nullptr;
 };
 
 class Cube

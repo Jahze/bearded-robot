@@ -36,6 +36,8 @@ public:
 		m_precomputedModelView = m_viewTransform * m_modelTransform;
 	}
 
+	void SetShader(ShadyObject * shader);
+
 private:
 	const Projection & m_projection;
 	Matrix4 m_modelTransform;

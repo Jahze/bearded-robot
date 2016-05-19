@@ -25,6 +25,8 @@ public:
 
 	void SetTriangleContext(const std::array<VertexShaderOutput, 3> * triangle);
 
+	void SetShader(ShadyObject * shader);
+
 private:
 	InterpolatedValues InterpolateForContext(int x, int y) const;
 

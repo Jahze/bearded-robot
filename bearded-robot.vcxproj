@@ -83,8 +83,10 @@
     <ClInclude Include="scenes\BouncingCube.h" />
     <ClInclude Include="scenes\SpinningCube.h" />
     <ClInclude Include="scenes\SpinningSphere.h" />
+    <ClInclude Include="scenes\Teapot.h" />
     <ClInclude Include="scenes\Bunny.h" />
     <ClInclude Include="ScopedHDC.h" />
+    <ClInclude Include="ShaderCache.h" />
     <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="Types.h" />
     <ClInclude Include="Vector.h" />
@@ -103,9 +105,7 @@
     <ClCompile Include="Projection.cpp" />
     <ClCompile Include="Rasteriser.cpp" />
     <ClCompile Include="Scene.cpp" />
-    <ClInclude Include="scenes\Teapot.h">
-      <FileType>CppCode</FileType>
-    </ClInclude>
+    <ClCompile Include="ShaderCache.cpp" />
     <ClCompile Include="ShaderCompiler.cpp" />
     <ClCompile Include="Vector.cpp" />
     <ClCompile Include="VertexShader.cpp" />

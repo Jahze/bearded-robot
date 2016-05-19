@@ -17,12 +17,9 @@ namespace
 }
 
 FragmentShader::FragmentShader(ShadyObject * shader)
-	: m_shader(shader)
-	, m_g_light0_position(shader->GetGlobalLocation("g_light0_position"))
-	, m_g_world_position(shader->GetGlobalLocation("g_world_position"))
-	, m_g_world_normal(shader->GetGlobalLocation("g_world_normal"))
-	, m_g_colour(shader->GetGlobalReader("g_colour"))
-{ }
+{
+	SetShader(shader);
+}
 
 bool FragmentShader::Execute(int x, int y, FrameBuffer * buffer, Colour & colour) const
 {
@@ -68,6 +65,15 @@ void FragmentShader::SetTriangleContext(const std::array<VertexShaderOutput, 3> 
 		(*m_triangleContext)[1].m_screen.x, (*m_triangleContext)[1].m_screen.y,
 		(*m_triangleContext)[2].m_screen.x, (*m_triangleContext)[2].m_screen.y
 	);
+}
+
+void FragmentShader::SetShader(ShadyObject * shader)
+{
+	m_shader = shader;
+	m_g_light0_position = shader->GetGlobalLocation("g_light0_position");
+	m_g_world_position = shader->GetGlobalLocation("g_world_position");
+	m_g_world_normal = shader->GetGlobalLocation("g_world_normal");
+	m_g_colour = shader->GetGlobalReader("g_colour");
 }
 
 namespace

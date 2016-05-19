@@ -5,16 +5,22 @@
 
 VertexShader::VertexShader(const Projection & projection, ShadyObject * shader)
 	: m_projection(projection)
-	, m_shader(shader)
-	, m_g_position(shader->GetGlobalLocation("g_position"))
-	, m_g_normal(shader->GetGlobalLocation("g_normal"))
-	, m_g_model(shader->GetGlobalLocation("g_model"))
-	, m_g_view(shader->GetGlobalLocation("g_view"))
-	, m_g_projection(shader->GetGlobalLocation("g_projection"))
-	, m_g_projected_position(shader->GetGlobalReader("g_projected_position"))
-	, m_g_world_position(shader->GetGlobalReader("g_world_position"))
-	, m_g_world_normal(shader->GetGlobalReader("g_world_normal"))
-{ }
+{
+	SetShader(shader);
+}
+
+void VertexShader::SetShader(ShadyObject * shader)
+{
+	m_shader = shader;
+	m_g_position = shader->GetGlobalLocation("g_position");
+	m_g_normal = shader->GetGlobalLocation("g_normal");
+	m_g_model = shader->GetGlobalLocation("g_model");
+	m_g_view = shader->GetGlobalLocation("g_view");
+	m_g_projection = shader->GetGlobalLocation("g_projection");
+	m_g_projected_position = shader->GetGlobalReader("g_projected_position");
+	m_g_world_position = shader->GetGlobalReader("g_world_position");
+	m_g_world_normal = shader->GetGlobalReader("g_world_normal");
+}
 
 VertexShaderOutput VertexShader::Execute(const Vector3 & vertex) const
 {
@@ -39,6 +45,11 @@ VertexShaderOutput VertexShader::Execute(const Vector3 & vertex, const Vector3 &
 		m_g_projection.Write(m_projection.GetProjectionMatrix());
 
 		m_shader->Execute();
+
+		// g_world_position is actually relative to the camera, i.e. the camera
+		// is at the origin. this means that any other "world" positions have to
+		// be in view space too. for example a the light position is transformed
+		// before it goes into the fragment shader.
 
 		m_g_world_position.Read(output.m_position);
 		m_g_projected_position.Read(output.m_projected);

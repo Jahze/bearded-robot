@@ -84,6 +84,9 @@
       <Filter>Scenes</Filter>
     </ClInclude>
     <ClInclude Include="scenes\Teapot.h">
+      <Filter>Scenes</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderCache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -131,6 +134,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ObjReader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ShaderCache.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

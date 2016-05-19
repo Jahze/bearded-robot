@@ -21,6 +21,7 @@ namespace scene
 			{
 				m_teapot = reader.GetModel();
 				m_teapot->SetModelMatrix(Matrix4::Translation({ 0.0, -5.0, -30.0 }) * Matrix4::Scale({ 10.0, 10.0, 10.0 }));
+				m_teapot->SetFragmentShader(ShaderCache::Get().GetFragmentShader("fragment_cel.shader"));
 			}
 		}
 
