@@ -45,7 +45,7 @@ public:
 			u.x * v.y - u.y * v.x
 		};
 
-		return normal.NormalizedCopy();
+		return normal;
 	}
 
 	Vector3 Centre() const

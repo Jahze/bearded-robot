@@ -20,7 +20,7 @@ namespace scene
 			if (reader.Read("models\\teapot.wfobj"))
 			{
 				m_teapot = reader.GetModel();
-				m_teapot->SetModelMatrix(Matrix4::Translation({ 0.0, -15.0, -50.0 }) * Matrix4::Scale({ 10.0, 1.0, 10.0 }));
+				m_teapot->SetModelMatrix(Matrix4::Translation({ 0.0, -5.0, -30.0 }) * Matrix4::Scale({ 10.0, 10.0, 10.0 }));
 			}
 		}
 
@@ -36,7 +36,7 @@ namespace scene
 				m_rotation = 0.0;
 
 			Matrix4 modelTransform =
-				Matrix4::Translation({ 0.0, -15.0, -50.0 }) *
+				Matrix4::Translation({ 0.0, -5.0, -30.0 }) *
 				Matrix4::RotationAboutY(Units::Degrees, m_rotation) *
 				Matrix4::Scale({ 10.0, 10.0, 10.0 });
 

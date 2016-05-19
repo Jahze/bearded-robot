@@ -120,6 +120,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="fragment.shader" />
+    <None Include="fragment_cel.shader" />
     <None Include="fragment_with_specular.shader" />
     <None Include="vertex.shader" />
   </ItemGroup>

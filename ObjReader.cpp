@@ -131,7 +131,6 @@ bool ObjReader::Read(const std::string & filename)
 		for (std::size_t i = 0; i < size; ++i)
 		{
 			Vector3 normal;
-			std::size_t number = 0;
 
 			const std::size_t index = normals.size();
 
@@ -145,7 +144,6 @@ bool ObjReader::Read(const std::string & filename)
 				{
 					geometry::Triangle triangle(points[f1.point], points[f2.point], points[f3.point]);
 					normal += triangle.Normal();
-					++number;
 
 					if (f1.point == i)
 						f1.normal = index;
@@ -158,8 +156,7 @@ bool ObjReader::Read(const std::string & filename)
 				}
 			}
 
-			normal /= number;
-			normals.push_back(normal);
+			normals.push_back(normal.NormalizedCopy());
 		}
 	}
 
